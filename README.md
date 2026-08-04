@@ -4,14 +4,14 @@ C4143 DV-Scale Rack Test Status Dashboard 是一個 Tampermonkey userscript。�
 
 ## 目前版本
 
-- Dashboard：[C4143-DVScale-Dashboard.user_v1.7.0-test-suites.js](./C4143-DVScale-Dashboard.user_v1.7.0-test-suites.js)
+- Dashboard：[C4143-DVScale-Dashboard.user.js](./C4143-DVScale-Dashboard.user.js)（固定安裝網址，腳本內版本 v1.7.1）
 - 開發與維護文件：[C4143-DVScale-Dashboard-HANDOFF.md](./C4143-DVScale-Dashboard-HANDOFF.md)
 - Azure DevOps organization：`https://azurecsi.visualstudio.com`
 - Azure DevOps project：`Dev`
 
 ## Test Suites 分頁
 
-v1.7.0 新增 `Test Suites` 分頁，以 `Suite → Rack → Case table` 顯示 12 個 Suites、54 個基準測項與 5 櫃 Case。每列包含 ID、Title、Suite、Priority、Script type、CRC SDK、IGS Owner、Comments；可展開／收合全部階層，或用 Search 篩選 Suite、Rack、Case 與欄位內容。未能依 Title 對應的項目會列在 `Unmapped`，不會被隱藏。
+v1.7.x 新增 `Test Suites` 分頁，以 `Suite → Rack → Case table` 顯示 12 個 Suites、54 個基準測項與 5 櫃 Case。每列包含 ID、Title、Suite、Priority、Script type、CRC SDK、IGS Owner、Comments；可展開／收合全部階層，或用 Search 篩選 Suite、Rack、Case 與欄位內容。未能依 Title 對應的項目會列在 `Unmapped`，不會被隱藏。
 
 ## 使用 Tampermonkey 安裝
 
@@ -21,7 +21,7 @@ v1.7.0 新增 `Test Suites` 分頁，以 `Suite → Rack → Case table` 顯示 
 
 ### 2. 下載目前的 JS
 
-1. 開啟目前版本的 [Dashboard JS](./C4143-DVScale-Dashboard.user_v1.7.0-test-suites.js)。
+1. 開啟固定入口的 [Dashboard JS](./C4143-DVScale-Dashboard.user.js)。
 2. 在 GitHub 檔案頁面按 **Download raw file**，把 `.js` 檔下載到電腦。
 
 ### 3. 匯入 Tampermonkey
@@ -35,9 +35,24 @@ v1.7.0 新增 `Test Suites` 分頁，以 `Suite → Rack → Case table` 顯示 
 
 也可以在 Tampermonkey 選擇 **Create a new script**，將 JS 全部內容貼入編輯器後按 `Ctrl+S` 儲存。
 
-> 更新版本時，請先停用或刪除舊版，只保留一個 C4143 Dashboard userscript，避免兩個版本同時執行。
+> 從舊的版本檔名切換到固定入口時，需要最後一次手動安裝，並停用或刪除舊版。之後只保留一個 C4143 Dashboard userscript，避免兩個版本同時執行。
 
-## 每次開啟 Azure DevOps 時自動抓取更新
+## Dashboard 腳本自動更新
+
+固定入口的 userscript 已包含：
+
+```text
+@updateURL   https://raw.githubusercontent.com/alan512627/azure-devops-state-monitoring/main/C4143-DVScale-Dashboard.user.js
+@downloadURL https://raw.githubusercontent.com/alan512627/azure-devops-state-monitoring/main/C4143-DVScale-Dashboard.user.js
+```
+
+第一次由固定入口安裝後，Tampermonkey 會依自己的更新檢查間隔讀取 GitHub 上的 `@version`；當 repository 的版本號提高時，它會下載並取代已安裝版本。更新完成後，重新整理 Azure DevOps 頁面就會執行新版，不需要再次 Import。
+
+建議在 Tampermonkey Dashboard 的 **Settings → Script Update** 中，把更新檢查間隔調成你可接受的最短間隔，並確認該腳本的更新檢查沒有被關閉。如果剛 push 完希望立刻取得新版，可從 Tampermonkey 選單手動執行一次 **Check for userscript updates**，完成後再重新整理 Azure DevOps。
+
+> Tampermonkey 的標準更新是定時檢查，並不保證每一次按 `F5` 都立即連到 GitHub。因此一般情況只要重新整理即可；剛發布、但尚未到下一次檢查時間時，需要等候更新間隔或手動檢查一次。
+
+## 每次開啟 Azure DevOps 時自動抓取資料更新
 
 ### 專用 Dashboard 網址
 
@@ -119,7 +134,7 @@ Chrome 啟動並載入這個頁面後，Tampermonkey 會自動執行腳本；Liv
 
 1. 最新版本的 userscript。
 2. `C4143-DVScale-Dashboard-HANDOFF.md`。
-3. README 中的目前版本檔名與安裝連結。
+3. README 中的目前版本號與固定安裝連結。
 4. Tampermonkey `@version` 與檔頭說明。
 
 詳細架構、欄位 mapping、版本歷程與驗證紀錄請參考 [HANDOFF](./C4143-DVScale-Dashboard-HANDOFF.md)。

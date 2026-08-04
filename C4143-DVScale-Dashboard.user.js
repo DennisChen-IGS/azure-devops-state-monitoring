@@ -1,8 +1,12 @@
 // ==UserScript==
 // @name         C4143 DV-Scale Rack Test Status Dashboard
 // @namespace    local.ado.dvscale.dashboard
-// @version      1.7.0
-// @description  Adds a Test Suites tab with Suite > Rack > Case hierarchy and detailed Test Case fields.
+// @version      1.7.1
+// @description  Adds a Test Suites tab with Suite > Rack > Case hierarchy, detailed fields, and GitHub-hosted updates.
+// @homepageURL  https://github.com/alan512627/azure-devops-state-monitoring
+// @supportURL   https://github.com/alan512627/azure-devops-state-monitoring/issues
+// @updateURL    https://raw.githubusercontent.com/alan512627/azure-devops-state-monitoring/main/C4143-DVScale-Dashboard.user.js
+// @downloadURL  https://raw.githubusercontent.com/alan512627/azure-devops-state-monitoring/main/C4143-DVScale-Dashboard.user.js
 // @match        https://azurecsi.visualstudio.com/*
 // @run-at       document-idle
 // @grant        none
