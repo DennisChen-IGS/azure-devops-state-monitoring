@@ -4,12 +4,12 @@
 | --- | --- |
 | 文件版本 | 2.0 |
 | 初版日期 | 2026-07-28 |
-| 最後更新 | 2026-07-29 |
-| 最新腳本 | `C4143-DVScale-Dashboard.user_v1.6.2-number-of-cycles.js` |
-| 最新腳本大小 | 73912 bytes（約 72 KB） |
+| 最後更新 | 2026-08-04 |
+| 最新腳本 | `C4143-DVScale-Dashboard.user.js`（v1.7.1） |
+| 最新腳本大小 | 90670 bytes（約 89 KB） |
 | 執行環境 | Chrome + Tampermonkey，需已登入 Azure DevOps（azurecsi） |
 
-> 第 1～12 節保留 v1.2 建置時的原始設計與調查紀錄；第 13 節為 v1.3～v1.6.2 的後續開發補充，也是目前接手時應優先參考的最新狀態。
+> 第 1～12 節保留 v1.2 建置時的原始設計與調查紀錄；第 13 節為 v1.3～v1.6.2 的後續開發補充，第 14 節為 Test Suites 分頁，第 15 節為 v1.7.1 自動更新入口。
 
 ---
 
@@ -46,7 +46,7 @@
 
 | 檔案 / Key | 說明 |
 | --- | --- |
-| `C4143-DVScale-Dashboard.user_v1.6.2-number-of-cycles.js` | 最新主交付物，Tampermonkey userscript v1.6.2 |
+| `C4143-DVScale-Dashboard.user.js` | 最新主交付物與固定安裝入口，Tampermonkey userscript v1.7.1 |
 | `C4143-DVScale-Dashboard.user_v1.6.1-bug-priority-severity.js` | 上一個穩定版本，保留供回退與比對 |
 | `C4143-DVScale-Dashboard-snapshot.html` | 由頁面上 **Export offline snapshot .html** 按鈕產生的離線單檔（含資料 + 程式碼） |
 | `HANDOFF.md` | 本文件 |
@@ -290,6 +290,8 @@ document-idle → hash 含 dvdash？ → D.boot()
 | v1.4.3 | 定義 Closed = Pass、Blocked = Fail、In Progress = 進行中；Overview 新增 Pass／Fail 數量與比例 |
 | v1.6.1 | 加入 Case Priority、Sample Size、Test Duration、Bug Priority／Severity 橫向長條統計與可展開 ID；移除 Test Cycle 卡片；Bug 改以 Priority 為主、Severity 為次 |
 | v1.6.2 | 在 Sample Size 下新增 `Number_of_cycles` 統計卡，顯示已填／空白／總數、數值分布及 Case ID 下拉連結 |
+| v1.7.0 | 新增 `Test Suites` 分頁，以 Suite → Rack → Case table 顯示 54 個基準測項與 8 個欄位 |
+| v1.7.1 | userscript 改用固定檔名，加入 GitHub `@updateURL`／`@downloadURL`，支援 Tampermonkey 定時自動更新 |
 
 ---
 
@@ -451,7 +453,7 @@ v1.6.2 完成後執行以下檢查：
 
 ### 13.9 目前限制與維護注意事項
 
-1. 最新 `.js` 檔不會自動更新已安裝的 Tampermonkey 腳本，必須重新匯入或貼入 v1.6.2。
+1. 舊版本檔名必須最後一次手動改裝 `C4143-DVScale-Dashboard.user.js`；之後 Tampermonkey 可依 GitHub 固定網址與 `@version` 自動更新。
 2. Live query 必須在 `https://azurecsi.visualstudio.com` 同源頁面執行；在本機直接開啟 `.html` 仍無法跨網域呼叫 Azure DevOps API。
 3. 如果 Fields API 或自訂欄位權限失敗，Dashboard 會保留核心 State 資料，但自訂指標可能顯示空白並在 toast 提示。
 4. Bug Links 只辨識實際連結到 Test Case relations 的 Work Item，且只保留型別為 Bug 的項目。
@@ -459,3 +461,96 @@ v1.6.2 完成後執行以下檢查：
 6. Pass／Fail 是依目前 Case State 推導，並非 Test Run Outcome。
 7. 目前測試是針對交付版本進行的驗證流程，尚未在專案中長期保留可重複執行的自動化測試套件。
 8. 若 Azure DevOps 自訂欄位名稱或 reference name 改變，優先更新 `D.FIELD_SPECS`，不要只修改畫面文字。
+
+---
+
+## 14. 2026-08-04 Test Suites 分頁（v1.7.x）
+
+### 14.1 交付檔案
+
+- 最新 userscript：`C4143-DVScale-Dashboard.user.js`（目前 `@version` 1.7.1）
+- 基準來源：v1.6.2，原有 Overview、Rack 1～5、Bug、Priority、Sample Size、Number_of_cycles 與 Test Duration 功能均保留。
+- 新增第 7 個分頁：`Test Suites`。
+
+### 14.2 Suite 階層與欄位
+
+新分頁使用 `Suite → Rack → Case table` 兩層下拉結構。先依測試清單分為 12 個 Suites，再在每個 Suite 下面分 Rack 1～5，避免 5 櫃同名 Test Case 混在同一張表中。
+
+每個 Case 顯示以下欄位：
+
+| 欄位 | 來源／行為 |
+| --- | --- |
+| ID | Azure DevOps Work Item ID，可直接開啟 Case |
+| Title | Test Case Title |
+| Suite | 依提供的 54 個基準測項 Title 對應 |
+| Priority | `Microsoft.VSTS.Common.Priority` 或欄位別名 |
+| Script type | Fields API 動態尋找 `Script type`／`Script Type` |
+| CRC SDK | Fields API 動態尋找 `CRC SDK`／`CRC SDK Version` |
+| IGS Owner | Fields API 動態尋找 `IGS Owner`，Identity 類型顯示 display name |
+| Comments | Fields API 動態尋找 `Comments`／`Comment` |
+
+Suite 清單與每櫃基準測項數：Enumeration 26、IFWI 2、BMC 2、Manticore 1、GP 1、E.1s 1、M.2 1、Stability 9、Stress 2、Virtualization 3、MPF 4、Performance 2；合計 54 個唯一測項。5 櫃完整資料應顯示 270 個 Rack Cases。
+
+未符合基準 Title 的 Case 不會消失，而會放入 `Unmapped`，並在上方 `UNMAPPED CASES` 卡片顯示數量，方便日後補 mapping。
+
+### 14.3 操作與顯示規則
+
+- `Expand all`／`Collapse all` 同時控制 Suite 與 Rack 兩層。
+- Search 可搜尋 Suite、Rack、Case ID、Title、State、Priority、Script type、CRC SDK、IGS Owner 與 Comments。
+- 搜尋時只保留符合的 Case row，並自動展開有結果的 Suite／Rack。
+- Case ID 保留 Azure DevOps hyperlink。
+- 案例列左側顏色依目前 Case State 顯示；滑鼠移到列上可看到 Rack 與 State。
+- 表格在窄螢幕內部水平捲動，Dashboard 本身不產生整頁水平 overflow。
+- 若從舊的 v1.6.2 Offline snapshot 開啟，Suite 仍可由 Title 分類，但新增的 Script type、CRC SDK、IGS Owner、Comments 會顯示 `-`；執行一次 Live query 後即會寫入新版 snapshot。
+
+### 14.4 v1.7.0 驗證紀錄
+
+- JavaScript 語法解析：通過。
+- Suite 定義：12 個；基準 Title：54 個；正規化後重複：0。
+- 5 櫃測試資料：270 Case rows；Unmapped：0。
+- 分頁總數：7（Overview、Rack 1～5、Test Suites）。
+- 欄位順序：ID、Title、Suite、Priority、Script type、CRC SDK、IGS Owner、Comments。
+- Collapse all：開啟節點由 72 降為 0；Expand all：恢復 72。
+- 搜尋 `MPF`：只保留 MPF Suite、5 個 Rack、20 個 Case rows。
+- Desktop 1265 × 720：無整頁水平 overflow。
+- Mobile 375 px：無整頁水平 overflow，Case table 可在區塊內水平捲動。
+- Clean load：頁面非空白、無 framework overlay、Console 無 error／warning。
+
+---
+
+## 15. 2026-08-04 Tampermonkey 自動更新（v1.7.1）
+
+### 15.1 固定安裝入口
+
+正式安裝檔不再把版本號放在檔名中，固定使用：
+
+`C4143-DVScale-Dashboard.user.js`
+
+固定 Raw URL：
+
+`https://raw.githubusercontent.com/alan512627/azure-devops-state-monitoring/main/C4143-DVScale-Dashboard.user.js`
+
+### 15.2 Userscript metadata
+
+```text
+@version      1.7.1
+@updateURL    https://raw.githubusercontent.com/alan512627/azure-devops-state-monitoring/main/C4143-DVScale-Dashboard.user.js
+@downloadURL  https://raw.githubusercontent.com/alan512627/azure-devops-state-monitoring/main/C4143-DVScale-Dashboard.user.js
+```
+
+Tampermonkey 會按設定的更新間隔讀取固定 URL，比較 `@version`，發現較新版本後下載並更新。更新完成後，下一次開啟或重新整理 Azure DevOps 即執行新版。
+
+### 15.3 後續發布規則
+
+1. 所有正式修改都直接更新固定檔名 `C4143-DVScale-Dashboard.user.js`。
+2. 每次發布必須提高 `@version`，否則 Tampermonkey 不會判定為新版。
+3. 更新 README 與本 HANDOFF 的目前版本及變更紀錄。
+4. 合併到 `main` 後，確認 Raw URL 可讀到新版本 metadata。
+5. 不要重新改成含版本號的正式安裝檔名；Git commit／tag 已可保留歷史版本。
+
+### 15.4 使用限制
+
+- 首次從舊版切換到固定入口仍需手動安裝一次。
+- Tampermonkey 是依更新間隔檢查，不保證每次 `F5` 都立即連線 GitHub。
+- 剛發布若要立即套用，可在 Tampermonkey 執行 **Check for userscript updates**，之後重新整理 Azure DevOps。
+- PR 分支上的變更必須先合併進 `main`，固定 Raw URL 才會提供該版本。

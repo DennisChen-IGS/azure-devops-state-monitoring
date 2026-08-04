@@ -1,8 +1,12 @@
 // ==UserScript==
 // @name         C4143 DV-Scale Rack Test Status Dashboard
 // @namespace    local.ado.dvscale.dashboard
-// @version      1.6.2
-// @description  Adds Number_of_cycles coverage and value statistics below Sample Size, with expandable Case IDs.
+// @version      1.7.1
+// @description  Adds a Test Suites tab with Suite > Rack > Case hierarchy, detailed fields, and GitHub-hosted updates.
+// @homepageURL  https://github.com/alan512627/azure-devops-state-monitoring
+// @supportURL   https://github.com/alan512627/azure-devops-state-monitoring/issues
+// @updateURL    https://raw.githubusercontent.com/alan512627/azure-devops-state-monitoring/main/C4143-DVScale-Dashboard.user.js
+// @downloadURL  https://raw.githubusercontent.com/alan512627/azure-devops-state-monitoring/main/C4143-DVScale-Dashboard.user.js
 // @match        https://azurecsi.visualstudio.com/*
 // @run-at       document-idle
 // @grant        none
@@ -63,8 +67,84 @@
     severity: { fallback: 'Microsoft.VSTS.Common.Severity', aliases: ['Bug Severity', 'Severity'] },
     sampleSize: { aliases: ['Sample Size', 'Test Sample Size', 'Sample Count', 'Samples'] },
     numberOfCycles: { fallback: 'Custom.Number_of_cycles', aliases: ['Number_of_cycles', 'Number of cycles', 'Number of Cycles'] },
-    testDuration: { aliases: ['Test Duration', 'Estimated Test Duration', 'Duration', 'Test Time'] }
+    testDuration: { aliases: ['Test Duration', 'Estimated Test Duration', 'Duration', 'Test Time'] },
+    scriptType: { aliases: ['Script type', 'Script Type'] },
+    crcSdk: { aliases: ['CRC SDK', 'CRC SDK Version'] },
+    igsOwner: { aliases: ['IGS Owner'] },
+    comments: { aliases: ['Comments', 'Comment'] }
   };
+  D.SUITE_DEFINITIONS = [
+    ['Enumeration', [
+      'Test & verify CPU & its properties enumerated correctly in CloudHost OS.',
+      'Test & verify all E1.S devices enumerated & its their SMART properties in CloudHost OS.',
+      'Test & verify DC-SCM & its properties enumerated correctly in CloudHost OS.',
+      'Test & verify all populated memory slots are enumerated & all its properties shown correctly in CloudHost OS.',
+      'Test & verify Glacier Peak Cerberus enumeration with basic queries payload in OS.',
+      'Test & verify M.2 device enumeration & SMART properties in CloudHost OS.',
+      'Test & verify Glacier Peak enumeration & its properties in CloudHost OS.',
+      'Test & verify PCIe & its properties enumerated correctly in CloudHost OS.',
+      'Test & verify HPM FRU content to make sure follow the FRU spec',
+      'Test & verify DC-SCM FRU content to make sure follow the FRU spec',
+      'Test & verify OVL2 FRU content to make sure follow the FRU spec',
+      'Test & verify PDB FRU content to make sure follow the FRU spec',
+      'Test & verify Glacier Peak firmware version enumerated correctly',
+      'Test & verify TPM firmware version enumerated correctly',
+      'Test & verify Manticore firmware version enumerated correctly',
+      'Test & verify IFWI firmware version enumerated correctly',
+      'Test & verify BMC & TIP firmware version enumerated correctly',
+      'Test & verify BMC Service Config firmware version enumerated correctly',
+      'Test & verify HPM-CPLD firmware version enumerated correctly',
+      'Test & verify SCM-CPLD firmware version enumerated correctly',
+      'Test & verify E1.S firmware version enumerated correctly',
+      'Test & verify M.2 firmware version enumerated correctly',
+      'Test & verify VR firmware version enumerated correctly',
+      'Test & verify R-SCM subsystem firmware version enumerated correctly',
+      'Test & verify Power Shelf/PSU firmware version enumerated correctly',
+      'Test & verify PDB firmware version enumerated correctly'
+    ]],
+    ['IFWI', [
+      'Run IFWI firmware updates via Rack-SCM',
+      'Run IFWI firmware updates via utility under CloudHost OS'
+    ]],
+    ['BMC', [
+      'Run BMC firmware updates via R-SCM',
+      'Run BMC Service Config update via R-SCM command with full system stress in parallel'
+    ]],
+    ['Manticore', ['Run Manticore firmware updates with full system stress followed by AC Cycle via RSCM']],
+    ['GP', ['[RSCM] Verify Glacier Peak Subsystem FW Update']],
+    ['E.1s', ['System E1.S storage devices firmware updates with full system stress under CloudHost OS']],
+    ['M.2', ['System onboard boot M.2 firmware updates with full system stress under CloudHost OS']],
+    ['Stability', [
+      'AC cycle tests with No stress using R-SCM command',
+      'DC cycle tests with No stress using R-SCM command',
+      'Warm reboot OS cycle tests with no stress using R-SCM command',
+      'PXE AC cycle tests with No stress (GN)',
+      'PXE DC cycle tests with No stress (GN)',
+      'PXE Warm reboot OS cycle tests with no stress (GN) - Copy',
+      'AC cycle tests with stress in between using R-SCM command',
+      'DC cycle tests with stress in between using R-SCM command',
+      'Warm reboot OS cycle tests with stress in between using R-SCM command'
+    ]],
+    ['Stress', [
+      'Full System Stress for 48 hrs',
+      'Run IdleStress with BMC sensor telemetry'
+    ]],
+    ['Virtualization', [
+      'Create virtual switch with SR-IOV under CloudHost OS',
+      'SRIOV enable check',
+      'Create VM with windos OS'
+    ]],
+    ['MPF', [
+      'Verify MPF various functions on E1.S',
+      'MPF with heavy I/O stress',
+      'Various VM type performance requirement test with MPF Configuration',
+      'Perform cycle tests with No stress on MPF config'
+    ]],
+    ['Performance', [
+      'Diskspd - iostat / SR / SW / RR / RW',
+      'Host to host full duplex mode dual port on BM'
+    ]]
+  ];
   D.S = {racks:[],loadedAt:null,range:"all",chartType:"pie",panels:[],active:0,mode:"live"};
   D.el = function (t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; };
   D.svg = function (t, a) { var e = document.createElementNS('http://www.w3.org/2000/svg', t); for (var k in a) e.setAttribute(k, a[k]); return e; };
@@ -131,6 +211,25 @@
   };
   D.normalizeFieldName = function (value) {
     return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+  };
+  D.normalizeSuiteTitle = function (value) {
+    return String(value || '').replace(/^(\[[^\]]+\]\s*)+/, '').replace(/[\u2013\u2014]/g, '-').replace(/\s+/g, ' ').trim().toLowerCase();
+  };
+  D.suiteFor = function (testCase) {
+    var title = D.normalizeSuiteTitle(testCase && testCase.title);
+    for (var i = 0; i < D.SUITE_DEFINITIONS.length; i++) {
+      var titles = D.SUITE_DEFINITIONS[i][1];
+      for (var j = 0; j < titles.length; j++) {
+        if (D.normalizeSuiteTitle(titles[j]) === title) return D.SUITE_DEFINITIONS[i][0];
+      }
+    }
+    return 'Unmapped';
+  };
+  D.displayFieldValue = function (value) {
+    if (value == null || value === '') return '-';
+    if (Array.isArray(value)) return value.map(D.displayFieldValue).join(', ');
+    if (typeof value === 'object') value = value.displayName || value.name || value.uniqueName || value.mail || JSON.stringify(value);
+    return String(value).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() || '-';
   };
   D.discoverMetricFields = async function (base) {
     var map = {}, specs = D.FIELD_SPECS;
@@ -237,6 +336,12 @@
           sampleSize: D.fieldValue(f, D.S.metricFields && D.S.metricFields.sampleSize),
           numberOfCycles: D.fieldValue(f, D.S.metricFields && D.S.metricFields.numberOfCycles),
           testDuration: D.fieldValue(f, D.S.metricFields && D.S.metricFields.testDuration)
+        },
+        suiteFields: {
+          scriptType: D.fieldValue(f, D.S.metricFields && D.S.metricFields.scriptType),
+          crcSdk: D.fieldValue(f, D.S.metricFields && D.S.metricFields.crcSdk),
+          igsOwner: D.fieldValue(f, D.S.metricFields && D.S.metricFields.igsOwner),
+          comments: D.fieldValue(f, D.S.metricFields && D.S.metricFields.comments)
         },
         bugs: (linkedIdsOf[id] || []).filter(function (linkedId) {
           return byId[linkedId] && byId[linkedId]['System.WorkItemType'] === 'Bug';
@@ -575,6 +680,7 @@
   D.CSS += "\n.tab{font-size:18px;padding:10px 29px;min-height:42px}\n.metric-badge{display:inline-flex;align-items:center;border:1px solid;border-radius:5px;padding:2px 6px;font-size:10.5px;font-weight:700;white-space:nowrap}\n.metric-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:10px 0 14px}\n.metric-section{min-width:0;padding:10px;border:1px solid #1c2942;border-radius:8px;background:#0f1a2e;overflow-x:auto}\n.metric-section h4{margin:0 0 8px;color:#cfe3ff;font-size:12px}\n.metric-total{font-size:12px;color:#bcd9ff;margin:2px 0 8px;font-weight:700}\n.case-links{display:inline;line-height:1.8}\n@media(max-width:980px){.metric-grid{grid-template-columns:1fr}}\n@media(max-width:720px){.tab{font-size:16px;padding:9px 18px;min-height:40px}}";
   D.CSS += "\n.metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}\n.metric-stack{display:grid;gap:12px;align-content:start;min-width:0}\n.metric-section{overflow:hidden}\n.hbar-list{display:grid;gap:10px}\n.hbar-row{padding:9px 10px;border:1px solid #1c2942;border-radius:8px;background:#111d33}\n.hbar-row.total{border-color:#2d527d;background:#12223b}\n.hbar-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:6px}\n.hbar-label{min-width:0;color:#dbeafe;font-size:12px;font-weight:700;overflow-wrap:anywhere}\n.hbar-value{flex:none;color:#a9bdd8;font-size:11px;font-variant-numeric:tabular-nums;text-align:right}\n.hbar-track{height:12px;border-radius:999px;background:#1c2942;overflow:hidden}\n.hbar-fill{height:100%;border-radius:inherit;transition:width .25s ease}\n.hbar-details{margin-top:5px;color:#8fa3c0;font-size:11px}\n.hbar-details>summary{display:flex;align-items:center;min-height:32px;width:max-content;max-width:100%;cursor:pointer;color:#7dd3fc;font-weight:600;list-style:none}\n.hbar-details>summary::-webkit-details-marker{display:none}\n.hbar-details>summary:before{content:'\\25B8';margin-right:5px;color:#5b7ba6;transition:transform .15s}\n.hbar-details[open]>summary:before{transform:rotate(90deg)}\n.hbar-details>summary:hover{color:#bae6fd}\n.hbar-details>summary:focus-visible{outline:2px solid #38bdf8;outline-offset:2px;border-radius:4px}\n.hbar-links{display:flex;flex-wrap:wrap;gap:6px;padding:4px 0 2px 16px}\n@media(max-width:980px){.metric-grid{grid-template-columns:1fr}}\n@media(max-width:720px){.hbar-head{align-items:flex-start;flex-direction:column;gap:3px}.hbar-value{text-align:left}.hbar-row{padding:9px}.hbar-details>summary{min-height:40px}.hbar-links{padding-left:8px}}";
   D.CSS += "\n.bug-detail-scroll{max-width:100%;overflow-x:auto;margin-top:8px}\n.bug-detail-scroll>table{min-width:640px}";
+  D.CSS += "\n.suite-intro{margin:0 0 12px;color:#9fb3d0;font-size:12px}\n.suite-toolbar{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;width:min(760px,100%);margin-bottom:14px}\n.suite-toolbar>*{width:100%;min-width:0}\ndetails.suite-group,details.suite-rack{border:1px solid #253858;border-radius:9px;background:#0f1a2e;margin:8px 0;overflow:hidden}\ndetails.suite-group[open]{border-color:#35618f;background:#101d33}\ndetails.suite-rack{margin:8px 0;background:#0c1729}\n.suite-summary,.suite-rack-summary{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:11px 13px;cursor:pointer;list-style:none}\n.suite-summary::-webkit-details-marker,.suite-rack-summary::-webkit-details-marker{display:none}\n.suite-summary:before,.suite-rack-summary:before{content:'\\25B8';color:#7dd3fc;transition:transform .15s}\ndetails[open]>.suite-summary:before,details[open]>.suite-rack-summary:before{transform:rotate(90deg)}\n.suite-summary:hover,.suite-rack-summary:hover{background:#152744}\n.suite-name{font-size:15px;font-weight:700;color:#e0f2fe}\n.suite-rack-name{font-size:13px;font-weight:700;color:#cfe3ff}\n.suite-pill{display:inline-flex;padding:2px 8px;border-radius:999px;background:#193657;color:#bae6fd;border:1px solid #2d527d;font-size:11px;font-weight:700}\n.suite-group-body{padding:0 12px 12px 28px}\n.suite-rack-body{padding:0 10px 10px 28px}\n.suite-table-scroll{max-width:100%;overflow:auto;border:1px solid #1c2942;border-radius:7px}\ntable.suite-table{min-width:1320px;background:#0c1729}\n.suite-table th{position:sticky;top:0;background:#132039;z-index:1}\n.suite-table td{vertical-align:top;line-height:1.4}\n.suite-table .suite-id{width:86px;font-family:Consolas,monospace}\n.suite-table .suite-title{min-width:420px;color:#d7e3f4}\n.suite-table .suite-name-cell{min-width:110px}\n.suite-table .suite-owner{min-width:150px}\n.suite-table .suite-comments{min-width:240px;max-width:420px;white-space:normal;overflow-wrap:anywhere}\n.suite-case-row{border-left:3px solid transparent}\n.suite-case-row:hover{background:#152341}\n@media(max-width:720px){.suite-toolbar{grid-template-columns:repeat(2,minmax(0,1fr))}.suite-toolbar>input{grid-column:1/-1}.suite-group-body,.suite-rack-body{padding-left:10px}.suite-summary,.suite-rack-summary{padding:12px 10px}}";
   D.card = function (k, v, tone) {
     var c = D.el('div', 'card');
     if (tone) {
@@ -700,6 +806,113 @@
       if (text && vis > 0) ds[j].open = true;
     }
   };
+  D.suiteInventory = function () {
+    var groups = {}, order = D.SUITE_DEFINITIONS.map(function (definition) { return definition[0]; });
+    order.concat(['Unmapped']).forEach(function (name) { groups[name] = { name: name, racks: {}, cases: [], titles: {} }; });
+    D.S.racks.forEach(function (rack) {
+      D.collect(rack, 'Test Case').forEach(function (testCase) {
+        var suite = D.suiteFor(testCase);
+        var group = groups[suite] || groups.Unmapped;
+        var entry = { testCase: testCase, rack: rack };
+        group.cases.push(entry);
+        (group.racks[rack.label] = group.racks[rack.label] || []).push(entry);
+        group.titles[D.normalizeSuiteTitle(testCase.title)] = 1;
+      });
+    });
+    return order.concat(['Unmapped']).map(function (name) { return groups[name]; }).filter(function (group) { return group.cases.length; });
+  };
+  D.suiteCaseTable = function (entries, suiteName) {
+    var scroll = D.el('div', 'suite-table-scroll');
+    var table = D.el('table', 'suite-table'), thead = D.el('thead'), header = D.el('tr');
+    ['ID', 'Title', 'Suite', 'Priority', 'Script type', 'CRC SDK', 'IGS Owner', 'Comments'].forEach(function (label) { header.appendChild(D.el('th', null, label)); });
+    thead.appendChild(header); table.appendChild(thead);
+    var tbody = D.el('tbody');
+    entries.forEach(function (entry) {
+      var testCase = entry.testCase, fields = testCase.suiteFields || {}, metrics = testCase.metrics || {};
+      var row = D.el('tr', 'suite-case-row');
+      row.style.borderLeftColor = D.colorFor(testCase.state);
+      row.title = 'Rack: ' + entry.rack.label + ' · State: ' + testCase.state;
+      var idCell = D.el('td', 'suite-id'), idLink = D.el('a', 'caseid', String(testCase.id));
+      idLink.href = D.wiUrl(testCase.id); idLink.target = '_blank'; idLink.rel = 'noopener'; idCell.appendChild(idLink); row.appendChild(idCell);
+      row.appendChild(D.el('td', 'suite-title', testCase.title));
+      row.appendChild(D.el('td', 'suite-name-cell', suiteName));
+      var priority = D.priorityLevel(metrics.priority);
+      row.appendChild(D.el('td', null, D.hasMetric(metrics.priority) ? (priority ? 'P' + priority : D.displayFieldValue(metrics.priority)) : '-'));
+      row.appendChild(D.el('td', null, D.displayFieldValue(fields.scriptType)));
+      row.appendChild(D.el('td', null, D.displayFieldValue(fields.crcSdk)));
+      row.appendChild(D.el('td', 'suite-owner', D.displayFieldValue(fields.igsOwner)));
+      var comments = D.displayFieldValue(fields.comments), commentsCell = D.el('td', 'suite-comments', comments);
+      commentsCell.title = comments === '-' ? '' : comments; row.appendChild(commentsCell);
+      row._suiteSearch = [testCase.id, testCase.title, suiteName, entry.rack.label, testCase.state, metrics.priority,
+        D.displayFieldValue(fields.scriptType), D.displayFieldValue(fields.crcSdk), D.displayFieldValue(fields.igsOwner), comments].join(' ').toLowerCase();
+      tbody.appendChild(row);
+    });
+    table.appendChild(tbody); scroll.appendChild(table); return scroll;
+  };
+  D.suitePanel = function () {
+    var wrap = D.el('div'), groups = D.suiteInventory(), allEntries = [];
+    groups.forEach(function (group) { allEntries = allEntries.concat(group.cases); });
+    var uniqueTitles = {}, unmapped = 0;
+    allEntries.forEach(function (entry) {
+      uniqueTitles[D.normalizeSuiteTitle(entry.testCase.title)] = 1;
+      if (D.suiteFor(entry.testCase) === 'Unmapped') unmapped++;
+    });
+    var cards = D.el('div', 'cards');
+    [
+      D.card('TEST SUITES', groups.filter(function (group) { return group.name !== 'Unmapped'; }).length, '#38bdf8'),
+      D.card('UNIQUE TEST ITEMS', Object.keys(uniqueTitles).length, '#c084fc'),
+      D.card('RACK CASES', allEntries.length, '#34d399'),
+      D.card('UNMAPPED CASES', unmapped, unmapped ? '#fb7185' : '#2dd4bf')
+    ].forEach(function (card) { cards.appendChild(card); });
+    wrap.appendChild(cards);
+    wrap.appendChild(D.el('p', 'suite-intro', 'Suite mapping follows the supplied test inventory. Expand Suite, then Rack, to review each case. The table remains horizontally scrollable on smaller screens.'));
+    var toolbar = D.el('div', 'suite-toolbar');
+    var expand = D.el('button', null, 'Expand all'), collapse = D.el('button', null, 'Collapse all'), search = D.el('input');
+    search.placeholder = 'Search suite / rack / case / field …';
+    toolbar.appendChild(expand); toolbar.appendChild(collapse); toolbar.appendChild(search); wrap.appendChild(toolbar);
+    var groupsHost = D.el('div', 'suite-groups'); wrap.appendChild(groupsHost);
+    groups.forEach(function (group, groupIndex) {
+      var suiteDetails = D.el('details', 'suite-group');
+      if (groupIndex === 0) suiteDetails.open = true;
+      var suiteSummary = D.el('summary', 'suite-summary');
+      suiteSummary.appendChild(D.el('span', 'suite-name', group.name));
+      suiteSummary.appendChild(D.el('span', 'suite-pill', Object.keys(group.titles).length + ' test items'));
+      suiteSummary.appendChild(D.el('span', 'suite-pill', group.cases.length + ' rack cases'));
+      suiteDetails.appendChild(suiteSummary);
+      var suiteBody = D.el('div', 'suite-group-body');
+      D.S.racks.forEach(function (rack, rackIndex) {
+        var entries = group.racks[rack.label] || [];
+        if (!entries.length) return;
+        var rackDetails = D.el('details', 'suite-rack');
+        if (groupIndex === 0 && rackIndex === 0) rackDetails.open = true;
+        var rackSummary = D.el('summary', 'suite-rack-summary');
+        rackSummary.appendChild(D.el('span', 'suite-rack-name', rack.label));
+        rackSummary.appendChild(D.el('span', 'suite-pill', entries.length + ' cases'));
+        rackDetails.appendChild(rackSummary);
+        var rackBody = D.el('div', 'suite-rack-body'); rackBody.appendChild(D.suiteCaseTable(entries, group.name));
+        rackDetails.appendChild(rackBody); suiteBody.appendChild(rackDetails);
+      });
+      suiteDetails.appendChild(suiteBody); groupsHost.appendChild(suiteDetails);
+    });
+    expand.addEventListener('click', function () { wrap.querySelectorAll('details.suite-group,details.suite-rack').forEach(function (details) { details.open = true; }); });
+    collapse.addEventListener('click', function () { wrap.querySelectorAll('details.suite-group,details.suite-rack').forEach(function (details) { details.open = false; }); });
+    search.addEventListener('input', function () { D.applySuiteFilter(wrap, search.value); });
+    return wrap;
+  };
+  D.applySuiteFilter = function (panel, text) {
+    text = String(text || '').trim().toLowerCase();
+    panel.querySelectorAll('.suite-case-row').forEach(function (row) { row.classList.toggle('hide', !!text && row._suiteSearch.indexOf(text) < 0); });
+    panel.querySelectorAll('details.suite-rack').forEach(function (rack) {
+      var visible = rack.querySelectorAll('.suite-case-row:not(.hide)').length;
+      rack.classList.toggle('hide', !!text && !visible);
+      if (text && visible) rack.open = true;
+    });
+    panel.querySelectorAll('details.suite-group').forEach(function (suite) {
+      var visible = suite.querySelectorAll('.suite-case-row:not(.hide)').length;
+      suite.classList.toggle('hide', !!text && !visible);
+      if (text && visible) suite.open = true;
+    });
+  };
   D.rackTable = function () {
     var stateSet = {};
     var rows = D.S.racks.map(function (r) {
@@ -802,7 +1015,9 @@
   D.buildPanels = function () {
     var tabsBar = document.getElementById('tabs'), host = document.getElementById('panels');
     tabsBar.innerHTML = ''; host.innerHTML = ''; D.S.panels = [];
-    var defs = [{ kind: 'ov', label: 'Overview (' + D.S.racks.length + ' Racks)' }].concat(D.S.racks.map(function (r) { return { kind: 'rack', label: r.label, rack: r }; }));
+    var defs = [{ kind: 'ov', label: 'Overview (' + D.S.racks.length + ' Racks)' }]
+      .concat(D.S.racks.map(function (r) { return { kind: 'rack', label: r.label, rack: r }; }))
+      .concat([{ kind: 'suite', label: 'Test Suites' }]);
     defs.forEach(function (def, idx) {
       var tab = D.el('button', 'tab' + (idx === D.S.active ? ' active' : ''), def.label);
       tab.addEventListener('click', function () { D.showTab(idx); });
@@ -842,7 +1057,7 @@
         var b4 = D.box('Linked Bug tracking — from Test Case Links');
         refs.bugStatsBox = D.el('div'); b4.appendChild(refs.bugStatsBox);
         refs.bugBox = D.el('div', 'bug-detail-scroll'); b4.appendChild(refs.bugBox); panel.appendChild(b4);
-      } else {
+      } else if (def.kind === 'rack') {
         refs.cFeat = D.card('FEATURES', 0, '#c084fc');
         refs.cReq = D.card('SYSTEM REQS', 0, '#fbbf24');
         refs.cCase = D.card('TEST CASES', 0, '#34d399');
@@ -873,6 +1088,9 @@
         var treeHost = D.el('div');
         (def.rack.children || []).forEach(function (c) { treeHost.appendChild(D.tree(c, 1)); });
         tb.appendChild(treeHost); panel.appendChild(tb);
+      } else {
+        refs.suiteHost = D.suitePanel();
+        panel.appendChild(refs.suiteHost);
       }
       host.appendChild(panel); D.S.panels.push(refs);
     });
@@ -920,7 +1138,7 @@
         var perRack = D.S.racks.map(function (r) { var m = D.countStates(D.collect(r, 'Test Case').filter(D.inRange)); for (var k in m) stateSet[k] = 1; return m; });
         p.cmpHost.innerHTML = '';
         p.cmpHost.appendChild(D.stacked(D.S.racks.map(function (r) { return r.label; }), perRack, D.orderStates(Object.keys(stateSet))));
-      } else {
+      } else if (p.kind === 'rack') {
         var cs = D.collect(p.rack, 'Test Case'), fc = cs.filter(D.inRange);
         p.cFeat._val.textContent = D.collect(p.rack, 'Feature').length;
         p.cReq._val.textContent = D.collect(p.rack, 'System Requirement').length;
@@ -957,7 +1175,7 @@
       }
       D.S.racks = s.racks; D.S.loadedAt = s.savedAt || null; D.S.snapshotMode = true; D.S.bugLinkWarning = ''; D.S.metricFieldWarning = '';
       document.getElementById('updated').textContent = 'Snapshot: ' + D.fmt(D.S.loadedAt);
-      if (D.S.active > D.S.racks.length) D.S.active = 0;
+      if (D.S.active > D.S.racks.length + 1) D.S.active = 0;
       D.buildPanels(); D.refresh();
       return;
     }
@@ -967,7 +1185,7 @@
       D.S.racks = res.racks; D.S.loadedAt = new Date().toISOString(); D.S.snapshotMode = false;
       document.getElementById('updated').textContent = 'Updated: ' + D.fmt(D.S.loadedAt);
       D.saveSnapshot();
-      if (D.S.active > D.S.racks.length) D.S.active = 0;
+      if (D.S.active > D.S.racks.length + 1) D.S.active = 0;
       D.buildPanels(); D.refresh();
     } catch (e) {
       var m = String((e && e.message) || e);
