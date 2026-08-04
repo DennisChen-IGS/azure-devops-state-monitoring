@@ -1,13 +1,17 @@
 # Azure DevOps State Monitoring
 
-C4143 DV-Scale Rack Test Status Dashboard 是一個 Tampermonkey userscript。它會在 Azure DevOps 的同源專用頁面中執行 Query、讀取 Work Items，並建立 Overview、Rack 1～5、State、Pass／Fail、Priority、Bug、Sample Size、Test Duration 與 `Number_of_cycles` 統計。
+C4143 DV-Scale Rack Test Status Dashboard 是一個 Tampermonkey userscript。它會在 Azure DevOps 的同源專用頁面中執行 Query、讀取 Work Items，並建立 Overview、Rack 1～5、Test Suites、State、Pass／Fail、Priority、Bug、Sample Size、Test Duration 與 `Number_of_cycles` 統計。
 
 ## 目前版本
 
-- Dashboard：[C4143-DVScale-Dashboard.user_v1.6.2-number-of-cycles.js](./C4143-DVScale-Dashboard.user_v1.6.2-number-of-cycles.js)
+- Dashboard：[C4143-DVScale-Dashboard.user_v1.7.0-test-suites.js](./C4143-DVScale-Dashboard.user_v1.7.0-test-suites.js)
 - 開發與維護文件：[C4143-DVScale-Dashboard-HANDOFF.md](./C4143-DVScale-Dashboard-HANDOFF.md)
 - Azure DevOps organization：`https://azurecsi.visualstudio.com`
 - Azure DevOps project：`Dev`
+
+## Test Suites 分頁
+
+v1.7.0 新增 `Test Suites` 分頁，以 `Suite → Rack → Case table` 顯示 12 個 Suites、54 個基準測項與 5 櫃 Case。每列包含 ID、Title、Suite、Priority、Script type、CRC SDK、IGS Owner、Comments；可展開／收合全部階層，或用 Search 篩選 Suite、Rack、Case 與欄位內容。未能依 Title 對應的項目會列在 `Unmapped`，不會被隱藏。
 
 ## 使用 Tampermonkey 安裝
 
@@ -17,7 +21,7 @@ C4143 DV-Scale Rack Test Status Dashboard 是一個 Tampermonkey userscript。�
 
 ### 2. 下載目前的 JS
 
-1. 開啟目前版本的 [Dashboard JS](./C4143-DVScale-Dashboard.user_v1.6.2-number-of-cycles.js)。
+1. 開啟目前版本的 [Dashboard JS](./C4143-DVScale-Dashboard.user_v1.7.0-test-suites.js)。
 2. 在 GitHub 檔案頁面按 **Download raw file**，把 `.js` 檔下載到電腦。
 
 ### 3. 匯入 Tampermonkey
