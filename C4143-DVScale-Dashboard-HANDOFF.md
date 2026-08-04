@@ -5,11 +5,11 @@
 | 文件版本 | 2.0 |
 | 初版日期 | 2026-07-28 |
 | 最後更新 | 2026-08-04 |
-| 最新腳本 | `C4143-DVScale-Dashboard.user.js`（v1.7.1） |
-| 最新腳本大小 | 90670 bytes（約 89 KB） |
+| 最新腳本 | `C4143-DVScale-Dashboard.user.js`（v1.7.2） |
+| 最新腳本大小 | 92176 bytes（約 90 KB） |
 | 執行環境 | Chrome + Tampermonkey，需已登入 Azure DevOps（azurecsi） |
 
-> 第 1～12 節保留 v1.2 建置時的原始設計與調查紀錄；第 13 節為 v1.3～v1.6.2 的後續開發補充，第 14 節為 Test Suites 分頁，第 15 節為 v1.7.1 自動更新入口。
+> 第 1～12 節保留 v1.2 建置時的原始設計與調查紀錄；第 13 節為 v1.3～v1.6.2 的後續開發補充，第 14 節為 Test Suites 分頁，第 15 節為 v1.7.1 自動更新入口，第 16 節為 v1.7.2 左側直式分頁。
 
 ---
 
@@ -46,7 +46,7 @@
 
 | 檔案 / Key | 說明 |
 | --- | --- |
-| `C4143-DVScale-Dashboard.user.js` | 最新主交付物與固定安裝入口，Tampermonkey userscript v1.7.1 |
+| `C4143-DVScale-Dashboard.user.js` | 最新主交付物與固定安裝入口，Tampermonkey userscript v1.7.2 |
 | `C4143-DVScale-Dashboard.user_v1.6.1-bug-priority-severity.js` | 上一個穩定版本，保留供回退與比對 |
 | `C4143-DVScale-Dashboard-snapshot.html` | 由頁面上 **Export offline snapshot .html** 按鈕產生的離線單檔（含資料 + 程式碼） |
 | `HANDOFF.md` | 本文件 |
@@ -292,6 +292,7 @@ document-idle → hash 含 dvdash？ → D.boot()
 | v1.6.2 | 在 Sample Size 下新增 `Number_of_cycles` 統計卡，顯示已填／空白／總數、數值分布及 Case ID 下拉連結 |
 | v1.7.0 | 新增 `Test Suites` 分頁，以 Suite → Rack → Case table 顯示 54 個基準測項與 8 個欄位 |
 | v1.7.1 | userscript 改用固定檔名，加入 GitHub `@updateURL`／`@downloadURL`，支援 Tampermonkey 定時自動更新 |
+| v1.7.2 | Overview、Rack 1～5、Test Suites 改為左側直式分頁；縮小導覽寬度與字體並加入窄螢幕調整 |
 
 ---
 
@@ -468,7 +469,7 @@ v1.6.2 完成後執行以下檢查：
 
 ### 14.1 交付檔案
 
-- 最新 userscript：`C4143-DVScale-Dashboard.user.js`（目前 `@version` 1.7.1）
+- 最新 userscript：`C4143-DVScale-Dashboard.user.js`（目前 `@version` 1.7.2）
 - 基準來源：v1.6.2，原有 Overview、Rack 1～5、Bug、Priority、Sample Size、Number_of_cycles 與 Test Duration 功能均保留。
 - 新增第 7 個分頁：`Test Suites`。
 
@@ -554,3 +555,23 @@ Tampermonkey 會按設定的更新間隔讀取固定 URL，比較 `@version`，�
 - Tampermonkey 是依更新間隔檢查，不保證每次 `F5` 都立即連線 GitHub。
 - 剛發布若要立即套用，可在 Tampermonkey 執行 **Check for userscript updates**，之後重新整理 Azure DevOps。
 - PR 分支上的變更必須先合併進 `main`，固定 Raw URL 才會提供該版本。
+
+---
+
+## 16. 2026-08-04 左側直式分頁（v1.7.2）
+
+### 16.1 版面結構
+
+- Header 與控制列維持滿版寬度。
+- 控制列下方改為兩欄：左側 `.tabs` 導覽，右側 `#panels` Dashboard 內容。
+- Desktop：導覽欄 64px、按鈕 50px、字體 11px。
+- 720px 以下：導覽欄 54px、按鈕 44px、字體 10px。
+- 每個分頁文字使用 `writing-mode: vertical-rl`，維持完整字串的直向排列，不拆成逐字堆疊。
+- Active 分頁以較亮背景、白色半粗體與左側青色線條顯示。
+
+### 16.2 功能與相容性
+
+- `D.buildShell()` 新增 `.dashboard-main` 容器，既有 Header、Controls、Toast 與資料載入流程不變。
+- `D.buildPanels()` 與 `D.showTab()` 保留原有切頁邏輯，補上 `tablist`／`tab`／`tabpanel` 與 `aria-selected`。
+- 桌面 1672×943 與窄螢幕 390×844 均確認 7 個分頁、單一 active panel、無整頁水平溢出。
+- Rack 3 → Test Suites 互動切換已驗證；兩個頁面的工具列與內容皆正常顯示。
