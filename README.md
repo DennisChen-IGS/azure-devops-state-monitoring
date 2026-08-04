@@ -4,7 +4,7 @@ C4143 DV-Scale Rack Test Status Dashboard 是一個 Tampermonkey userscript。�
 
 ## 目前版本
 
-- Dashboard：[C4143-DVScale-Dashboard.user.js](./C4143-DVScale-Dashboard.user.js)（固定安裝網址，腳本內版本 v1.7.2）
+- Dashboard：[C4143-DVScale-Dashboard.user.js](./C4143-DVScale-Dashboard.user.js)（固定安裝網址，腳本內版本 v1.7.3）
 - 開發與維護文件：[C4143-DVScale-Dashboard-HANDOFF.md](./C4143-DVScale-Dashboard-HANDOFF.md)
 - Azure DevOps organization：`https://azurecsi.visualstudio.com`
 - Azure DevOps project：`Dev`
@@ -14,6 +14,8 @@ C4143 DV-Scale Rack Test Status Dashboard 是一個 Tampermonkey userscript。�
 v1.7.x 新增 `Test Suites` 分頁，以 `Suite → Rack → Case table` 顯示 12 個 Suites、54 個基準測項與 5 櫃 Case。每列包含 ID、Title、Suite、Priority、Script type、CRC SDK、IGS Owner、Comments；可展開／收合全部階層，或用 Search 篩選 Suite、Rack、Case 與欄位內容。未能依 Title 對應的項目會列在 `Unmapped`，不會被隱藏。
 
 v1.7.2 將 Overview、Rack 1～5 與 Test Suites 改為左側直式導覽。分頁上下排列，文字整段旋轉顯示；桌面版導覽寬 64px、按鈕寬 50px、字體 11px，窄螢幕自動縮為 54px／44px／10px，不占用右側 Dashboard 的資料空間。
+
+v1.7.3 修正 re-query 完成提示的顯示時間：藍色資訊與黃色警告會在 4.5 秒開始淡出、5.2 秒完全隱藏；只有紅色載入錯誤會保留，方便使用者閱讀與排除問題。
 
 ## 使用 Tampermonkey 安裝
 

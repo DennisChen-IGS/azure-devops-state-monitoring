@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         C4143 DV-Scale Rack Test Status Dashboard
 // @namespace    local.ado.dvscale.dashboard
-// @version      1.7.2
-// @description  Adds compact vertical navigation, Test Suites hierarchy, detailed fields, and GitHub-hosted updates.
+// @version      1.7.3
+// @description  Adds compact vertical navigation, auto-hiding query notices, Test Suites hierarchy, and GitHub-hosted updates.
 // @homepageURL  https://github.com/alan512627/azure-devops-state-monitoring
 // @supportURL   https://github.com/alan512627/azure-devops-state-monitoring/issues
 // @updateURL    https://raw.githubusercontent.com/alan512627/azure-devops-state-monitoring/main/C4143-DVScale-Dashboard.user.js
@@ -185,7 +185,7 @@
     kind = kind || 'info';
     b.className = 'banner ' + kind; b.innerHTML = html;
     b.classList.remove('hide', 'fading');
-    if (kind === 'info') {
+    if (kind !== 'err') {
       D._statusFadeTimer = setTimeout(function () { b.classList.add('fading'); }, 4500);
       D._statusHideTimer = setTimeout(function () { b.classList.add('hide'); }, 5200);
     }
