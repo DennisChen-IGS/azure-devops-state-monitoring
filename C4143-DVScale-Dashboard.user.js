@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         C4143 DV-Scale Rack Test Status Dashboard
 // @namespace    local.ado.dvscale.dashboard
-// @version      1.7.1
-// @description  Adds a Test Suites tab with Suite > Rack > Case hierarchy, detailed fields, and GitHub-hosted updates.
+// @version      1.7.2
+// @description  Adds compact vertical navigation, Test Suites hierarchy, detailed fields, and GitHub-hosted updates.
 // @homepageURL  https://github.com/alan512627/azure-devops-state-monitoring
 // @supportURL   https://github.com/alan512627/azure-devops-state-monitoring/issues
 // @updateURL    https://raw.githubusercontent.com/alan512627/azure-devops-state-monitoring/main/C4143-DVScale-Dashboard.user.js
@@ -681,6 +681,7 @@
   D.CSS += "\n.metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}\n.metric-stack{display:grid;gap:12px;align-content:start;min-width:0}\n.metric-section{overflow:hidden}\n.hbar-list{display:grid;gap:10px}\n.hbar-row{padding:9px 10px;border:1px solid #1c2942;border-radius:8px;background:#111d33}\n.hbar-row.total{border-color:#2d527d;background:#12223b}\n.hbar-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:6px}\n.hbar-label{min-width:0;color:#dbeafe;font-size:12px;font-weight:700;overflow-wrap:anywhere}\n.hbar-value{flex:none;color:#a9bdd8;font-size:11px;font-variant-numeric:tabular-nums;text-align:right}\n.hbar-track{height:12px;border-radius:999px;background:#1c2942;overflow:hidden}\n.hbar-fill{height:100%;border-radius:inherit;transition:width .25s ease}\n.hbar-details{margin-top:5px;color:#8fa3c0;font-size:11px}\n.hbar-details>summary{display:flex;align-items:center;min-height:32px;width:max-content;max-width:100%;cursor:pointer;color:#7dd3fc;font-weight:600;list-style:none}\n.hbar-details>summary::-webkit-details-marker{display:none}\n.hbar-details>summary:before{content:'\\25B8';margin-right:5px;color:#5b7ba6;transition:transform .15s}\n.hbar-details[open]>summary:before{transform:rotate(90deg)}\n.hbar-details>summary:hover{color:#bae6fd}\n.hbar-details>summary:focus-visible{outline:2px solid #38bdf8;outline-offset:2px;border-radius:4px}\n.hbar-links{display:flex;flex-wrap:wrap;gap:6px;padding:4px 0 2px 16px}\n@media(max-width:980px){.metric-grid{grid-template-columns:1fr}}\n@media(max-width:720px){.hbar-head{align-items:flex-start;flex-direction:column;gap:3px}.hbar-value{text-align:left}.hbar-row{padding:9px}.hbar-details>summary{min-height:40px}.hbar-links{padding-left:8px}}";
   D.CSS += "\n.bug-detail-scroll{max-width:100%;overflow-x:auto;margin-top:8px}\n.bug-detail-scroll>table{min-width:640px}";
   D.CSS += "\n.suite-intro{margin:0 0 12px;color:#9fb3d0;font-size:12px}\n.suite-toolbar{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;width:min(760px,100%);margin-bottom:14px}\n.suite-toolbar>*{width:100%;min-width:0}\ndetails.suite-group,details.suite-rack{border:1px solid #253858;border-radius:9px;background:#0f1a2e;margin:8px 0;overflow:hidden}\ndetails.suite-group[open]{border-color:#35618f;background:#101d33}\ndetails.suite-rack{margin:8px 0;background:#0c1729}\n.suite-summary,.suite-rack-summary{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:11px 13px;cursor:pointer;list-style:none}\n.suite-summary::-webkit-details-marker,.suite-rack-summary::-webkit-details-marker{display:none}\n.suite-summary:before,.suite-rack-summary:before{content:'\\25B8';color:#7dd3fc;transition:transform .15s}\ndetails[open]>.suite-summary:before,details[open]>.suite-rack-summary:before{transform:rotate(90deg)}\n.suite-summary:hover,.suite-rack-summary:hover{background:#152744}\n.suite-name{font-size:15px;font-weight:700;color:#e0f2fe}\n.suite-rack-name{font-size:13px;font-weight:700;color:#cfe3ff}\n.suite-pill{display:inline-flex;padding:2px 8px;border-radius:999px;background:#193657;color:#bae6fd;border:1px solid #2d527d;font-size:11px;font-weight:700}\n.suite-group-body{padding:0 12px 12px 28px}\n.suite-rack-body{padding:0 10px 10px 28px}\n.suite-table-scroll{max-width:100%;overflow:auto;border:1px solid #1c2942;border-radius:7px}\ntable.suite-table{min-width:1320px;background:#0c1729}\n.suite-table th{position:sticky;top:0;background:#132039;z-index:1}\n.suite-table td{vertical-align:top;line-height:1.4}\n.suite-table .suite-id{width:86px;font-family:Consolas,monospace}\n.suite-table .suite-title{min-width:420px;color:#d7e3f4}\n.suite-table .suite-name-cell{min-width:110px}\n.suite-table .suite-owner{min-width:150px}\n.suite-table .suite-comments{min-width:240px;max-width:420px;white-space:normal;overflow-wrap:anywhere}\n.suite-case-row{border-left:3px solid transparent}\n.suite-case-row:hover{background:#152341}\n@media(max-width:720px){.suite-toolbar{grid-template-columns:repeat(2,minmax(0,1fr))}.suite-toolbar>input{grid-column:1/-1}.suite-group-body,.suite-rack-body{padding-left:10px}.suite-summary,.suite-rack-summary{padding:12px 10px}}";
+  D.CSS += "\n.dashboard-main{display:grid;grid-template-columns:64px minmax(0,1fr);align-items:start;min-width:0}\n#panels{min-width:0}\n.tabs{display:flex;flex-direction:column;flex-wrap:nowrap;align-items:center;gap:4px;width:64px;min-width:64px;padding:10px 6px 60px 8px}\n.tab{display:flex;align-items:center;justify-content:center;flex:0 0 auto;width:50px;min-width:50px;max-width:50px;min-height:72px;height:auto;padding:8px 5px;border:1px solid #1e2b45;border-radius:6px;background:#111d33;color:#9fb3d0;writing-mode:vertical-rl;text-orientation:mixed;white-space:nowrap;font-size:11px;line-height:1.1}\n.tab.active{background:#16243d;color:#fff;font-weight:600;box-shadow:inset 3px 0 0 #38bdf8}\n.panel{min-width:0;padding:16px 20px 60px 14px}\n@media(max-width:720px){.dashboard-main{grid-template-columns:54px minmax(0,1fr)}.tabs{width:54px;min-width:54px;padding:8px 4px 40px}.tab{width:44px;min-width:44px;max-width:44px;min-height:66px;padding:7px 4px;font-size:10px}.panel{padding:12px 10px 50px 8px}}";
   D.card = function (k, v, tone) {
     var c = D.el('div', 'card');
     if (tone) {
@@ -993,8 +994,10 @@
     document.body.appendChild(ctl);
 
     var banner = D.el('div', 'banner info', 'Preparing to load…'); banner.id = 'banner'; document.body.appendChild(banner);
-    var tabs = D.el('div', 'tabs'); tabs.id = 'tabs'; document.body.appendChild(tabs);
-    var panels = D.el('div'); panels.id = 'panels'; document.body.appendChild(panels);
+    var main = D.el('main', 'dashboard-main');
+    var tabs = D.el('div', 'tabs'); tabs.id = 'tabs'; tabs.setAttribute('role', 'tablist'); tabs.setAttribute('aria-orientation', 'vertical'); main.appendChild(tabs);
+    var panels = D.el('div'); panels.id = 'panels'; main.appendChild(panels);
+    document.body.appendChild(main);
 
     ms.addEventListener('change', function (e) {
       D.S.mode = e.target.value;
@@ -1020,9 +1023,11 @@
       .concat([{ kind: 'suite', label: 'Test Suites' }]);
     defs.forEach(function (def, idx) {
       var tab = D.el('button', 'tab' + (idx === D.S.active ? ' active' : ''), def.label);
+      tab.setAttribute('role', 'tab'); tab.setAttribute('aria-selected', idx === D.S.active ? 'true' : 'false');
       tab.addEventListener('click', function () { D.showTab(idx); });
       tabsBar.appendChild(tab);
       var panel = D.el('div', 'panel' + (idx === D.S.active ? ' active' : ''));
+      var panelId = 'dashboard-panel-' + idx; panel.id = panelId; panel.setAttribute('role', 'tabpanel'); tab.setAttribute('aria-controls', panelId);
       var refs = { kind: def.kind, rack: def.rack, panel: panel, tab: tab };
       var cards = D.el('div', 'cards');
       if (def.kind === 'ov') {
@@ -1097,7 +1102,7 @@
   };
   D.showTab = function (idx) {
     D.S.active = idx;
-    D.S.panels.forEach(function (p, i) { p.tab.classList.toggle('active', i === idx); p.panel.classList.toggle('active', i === idx); });
+    D.S.panels.forEach(function (p, i) { var active = i === idx; p.tab.classList.toggle('active', active); p.tab.setAttribute('aria-selected', active ? 'true' : 'false'); p.panel.classList.toggle('active', active); });
     D.refresh();
   };
   D.drawInto = function (host, counts) {
