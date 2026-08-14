@@ -1,23 +1,27 @@
 # Azure DevOps State Monitoring
 
-C4143 DV-Scale Rack Test Status Dashboard 是一個 Tampermonkey userscript。它會在 Azure DevOps 的同源專用頁面中執行 Query、讀取 Work Items，並建立 Overview、Rack 1～5、Test Suites、State、Pass／Fail、Priority、Bug、Sample Size、Test Duration 與 `Number_of_cycles` 統計。
+C4143 DV-Scale Rack Test Status Dashboard 是一個 Tampermonkey userscript。它會在 Azure DevOps 的同源專用頁面中執行 Query、讀取 Work Items，並建立 Overview、Rack 1～5、Rack 1 Test Features、State、Pass／Fail、Priority、Bug、Sample Size、Test Duration 與 `Number_of_cycles` 統計。
 
 ## 目前版本
 
-- Dashboard：[C4143-DVScale-Dashboard.user.js](./C4143-DVScale-Dashboard.user.js)（固定安裝網址，腳本內版本 v1.8.0）
+- Dashboard：[C4143-DVScale-Dashboard.user.js](./C4143-DVScale-Dashboard.user.js)（固定安裝網址，腳本內版本 v1.8.3）
 - 開發與維護文件：[C4143-DVScale-Dashboard-HANDOFF.md](./C4143-DVScale-Dashboard-HANDOFF.md)
 - Azure DevOps organization：`https://azurecsi.visualstudio.com`
 - Azure DevOps project：`Dev`
 
-## Test Suites 分頁
+## Test Features 分頁
 
-v1.7.x 新增 `Test Suites` 分頁，以 `Suite → Rack → Case table` 顯示 12 個 Suites、54 個基準測項與 5 櫃 Case。v1.8.0 起，每列直接同步 Rack、State、Changed Date、Priority、Sample Size、Number of Cycles、Test Duration、Script type、CRC SDK、IGS Owner、Linked Bugs 與 Comments；可展開／收合全部階層，或用 Search 篩選 Suite、Rack、Case 與上述欄位。未能依 Title 對應的項目會列在 `Unmapped`，不會被隱藏。
+v1.8.2 的 `Test Features` 每次 Query 後直接遍歷 Rack 1 的最新 Work Item 階層，把全部 Rack 1 Test Case 依最近的上層 Feature 動態分組，不再依賴預先寫死的 Case Title 清單。畫面恢復為原本的 Feature 展開／收合與 Case 表格列表，顯示 ID、Title、State、Changed Date、Priority、Sample Size、Number of Cycles、Test Duration、Script type、CRC SDK、IGS Owner、Linked Bugs 與 Comments；Search 可同時篩選上述資料。
 
-v1.7.2 將 Overview、Rack 1～5 與 Test Suites 改為左側直式導覽。分頁上下排列，文字整段旋轉顯示；桌面版導覽寬 64px、按鈕寬 50px、字體 11px，窄螢幕自動縮為 54px／44px／10px，不占用右側 Dashboard 的資料空間。
+頁面上的 `LISTED / RACK 1 CASES` 卡片會直接比較最後一頁列出的 Case 數與 Rack 1 分頁的 Case 數，正常情況應顯示 `58 / 58`。
+
+目前正式基準為 **5 Racks × 58 Cases = 290 Cases**。v1.8.3 起，Overview 的 `TOTAL TEST CASES / EXPECTED` 應顯示 `290 / 290`，每個 Rack 的 `TEST CASES / EXPECTED` 應顯示 `58 / 58`。如果 Query 回傳數量不同，卡片會變成紅色，右下提示會列出總數及各 Rack 的差異；Dashboard 不會自行補造缺少的 Case。
+
+v1.7.2 將 Overview、Rack 1～5 與最後一頁改為左側直式導覽。分頁上下排列，文字整段旋轉顯示；桌面版導覽寬 64px、按鈕寬 50px、字體 11px，窄螢幕自動縮為 54px／44px／10px，不占用右側 Dashboard 的資料空間。
 
 v1.7.3 修正 re-query 完成提示的顯示時間：藍色資訊與黃色警告會在 4.5 秒開始淡出、5.2 秒完全隱藏；只有紅色載入錯誤會保留，方便使用者閱讀與排除問題。
 
-v1.8.0 將左側分頁、Overview／Rack 的摘要卡與圖表區設為桌面捲動時固定；Test Suites 的摘要與工具列也維持可見。新增 **Download Excel (.xls)**，輸出全部同步 Case 的 16 欄 Excel 2003 XML 工作表，包含凍結標題列、AutoFilter 與 Azure DevOps hyperlink，無需外部 CDN。
+v1.8.1 將固定範圍縮小為控制列、左側分頁與摘要卡；圓餅圖、比較圖及以下內容會正常跟隨頁面捲動。所有摘要卡強制維持單列，空間不足時只在卡片列內水平捲動，不會換到下一列。**Download Excel (.xls)** 改為輸出 Rack 1 Test Features 的 16 欄 Excel 2003 XML 工作表，包含凍結標題列、AutoFilter 與 Azure DevOps hyperlink，無需外部 CDN。
 
 ## 使用 Tampermonkey 安裝
 
