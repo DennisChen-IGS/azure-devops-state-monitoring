@@ -5,11 +5,13 @@
 | 文件版本 | 2.0 |
 | 初版日期 | 2026-07-28 |
 | 最後更新 | 2026-08-14 |
-| 最新腳本 | `C4143-DVScale-Dashboard.user.js`（v1.8.2） |
-| 最新腳本大小 | 95281 bytes（約 93.0 KB） |
+| 最新腳本 | `C4143-DVScale-Dashboard.user.js`（v1.8.3） |
+| 最新腳本大小 | 97067 bytes（約 94.8 KB） |
 | 執行環境 | Chrome + Tampermonkey，需已登入 Azure DevOps（azurecsi） |
 
-> 第 1～12 節保留 v1.2 建置時的原始設計與調查紀錄；第 13 節為 v1.3～v1.6.2 的後續開發補充，第 14 節為 Test Suites 分頁，第 15 節為 v1.7.1 自動更新入口，第 16 節為 v1.7.2 左側直式分頁，第 17 節為 v1.7.3 提示淡出修正，第 18 節為 v1.8.0 sticky 與 Excel 匯出，第 19 節為 v1.8.1 固定範圍與 Rack 1 Test Features 平鋪頁，第 20 節為 v1.8.2 Test Features 列表復原與數量同步。
+> 第 1～12 節保留 v1.2 建置時的原始設計與調查紀錄；第 13 節為 v1.3～v1.6.2 的後續開發補充，第 14 節為 Test Suites 分頁，第 15 節為 v1.7.1 自動更新入口，第 16 節為 v1.7.2 左側直式分頁，第 17 節為 v1.7.3 提示淡出修正，第 18 節為 v1.8.0 sticky 與 Excel 匯出，第 19 節為 v1.8.1 固定範圍與 Rack 1 Test Features 平鋪頁，第 20 節為 v1.8.2 Test Features 列表復原與數量同步，第 21 節為 v1.8.3 的 290 Cases 正式基準。
+
+> **目前正式數量（2026-08-14 Live Query 驗證）：5 Racks × 每櫃 58 Test Cases = 290 Test Cases。文件前段出現的 54／270 是舊資料快照與歷史驗證紀錄，不代表目前數量。**
 
 ---
 
@@ -46,7 +48,7 @@
 
 | 檔案 / Key | 說明 |
 | --- | --- |
-| `C4143-DVScale-Dashboard.user.js` | 最新主交付物與固定安裝入口，Tampermonkey userscript v1.8.2 |
+| `C4143-DVScale-Dashboard.user.js` | 最新主交付物與固定安裝入口，Tampermonkey userscript v1.8.3 |
 | `C4143-DVScale-Dashboard.user_v1.6.1-bug-priority-severity.js` | 上一個穩定版本，保留供回退與比對 |
 | `C4143-DVScale-Dashboard-snapshot.html` | 由頁面上 **Export offline snapshot .html** 按鈕產生的離線單檔（含資料 + 程式碼） |
 | `HANDOFF.md` | 本文件 |
@@ -297,6 +299,7 @@ document-idle → hash 含 dvdash？ → D.boot()
 | v1.8.0 | 左側分頁與摘要／圖表區支援 sticky；Test Suites 同步 Case 欄位並新增 Excel `.xls` 匯出 |
 | v1.8.1 | Sticky 僅保留摘要卡以上，圖表開始正常捲動；卡片維持單列；最後一頁依 Rack 1 即時 Feature 階層平鋪全部 Case |
 | v1.8.2 | Test Features 恢復 Feature 下拉與 Case 表格列表；資料仍由 Rack 1 階層動態產生，並顯示列表數／Rack 1 Case 數同步檢查 |
+| v1.8.3 | 正式基準更新為 5×58=290；Overview、Rack 與 Test Features 顯示實際／預期數量，缺漏時以紅色卡片與 Coverage warning 提示 |
 
 ---
 
@@ -320,7 +323,7 @@ document-idle → hash 含 dvdash？ → D.boot()
 | 上一個穩定版 | `C4143-DVScale-Dashboard.user_v1.6.1-bug-priority-severity.js` |
 | Azure DevOps Query | `C4143_DV-Scale` / `9254024e-6a97-44ed-953b-1aa07d38fb48` |
 | 啟動網址 | `https://azurecsi.visualstudio.com/_apis/projects?api-version=6.0#dvdash` |
-| 目前資料量 | 5 Racks / 270 Test Cases |
+| 目前資料量 | 5 Racks / 290 Test Cases（每 Rack 58） |
 
 最新版與歷史版本目前存放於：
 
@@ -473,7 +476,7 @@ v1.6.2 完成後執行以下檢查：
 
 ### 14.1 交付檔案
 
-- 最新 userscript：`C4143-DVScale-Dashboard.user.js`（目前 `@version` 1.8.2）
+- 最新 userscript：`C4143-DVScale-Dashboard.user.js`（目前 `@version` 1.8.3）
 - 基準來源：v1.6.2，原有 Overview、Rack 1～5、Bug、Priority、Sample Size、Number_of_cycles 與 Test Duration 功能均保留。
 - 新增第 7 個分頁：`Test Suites`。
 
@@ -653,5 +656,31 @@ Tampermonkey 會按設定的更新間隔讀取固定 URL，比較 `@version`，�
 - 每個 Feature 表格共 13 欄：ID、Title、State、Changed、Priority、Sample Size、Cycles、Duration、Script type、CRC SDK、IGS Owner、Linked Bugs、Comments。
 - 工具列恢復 **Expand all**、**Collapse all**，並保留 Excel 下載與 Search；搜尋命中時自動展開對應 Feature。
 - 新增 `LISTED / RACK 1 CASES` 摘要卡，左值來自列表實際 entries，右值直接來自 `D.collect(D.S.racks[0], 'Test Case')`；兩者相同時使用綠色標示，不一致時改為紅色。
-- Browser fixture 驗證 Rack 1 卡片為 54、列表為 54 rows，對照卡顯示 `54 / 54`；12 個 Feature 執行 Expand all 後全部開啟、Collapse all 後全部關閉。
+- v1.8.2 當時使用的舊 Browser fixture 為 Rack 1 54、列表 54 rows；v1.8.3 已以 Live Query 58／Rack 與 290 total 取代此舊基準。
 - 搜尋 `Performance` 後只保留 Performance Feature 與 2 筆 Case；表格 13 欄完整，Browser Console 無 Error／Warning。
+
+---
+
+## 21. 2026-08-14 正式 290 Cases 基準與 Coverage 檢查（v1.8.3）
+
+### 21.1 Live Query 實際核對
+
+- 使用已登入 Azure DevOps 的 Chrome 直接檢查 `C4143_DV-Scale` Dashboard（Live query，更新時間 2026-08-14 18:08）。
+- Query 回傳 5 Racks、290 Test Cases；舊 Test Suites 畫面同時顯示 58 unique test items、290 rack cases。
+- 逐一切換 Rack 1～5，五個 Rack 的 `TEST CASES` 卡片都顯示 58。
+- 因此正式基準確定為 `5 × 58 = 290`；先前 270 是過期的 54-case fixture，不是目前 Azure Query 結果。
+
+### 21.2 Dashboard 覆蓋率保護
+
+- 新增 `D.EXPECTED = { rackCount: 5, casesPerRack: 58 }`。
+- Overview 卡片改為 `TOTAL TEST CASES / EXPECTED`，正常為 `290 / 290`；Rack 卡片改為 `TEST CASES / EXPECTED`，正常為 `58 / 58`。
+- `D.setCoverageCard()` 在實際值等於預期值時使用綠色，數量不足或超出時改為紅色，Tooltip 顯示差異。
+- Query 結果若不是 5 Racks／290 Cases，右下狀態提示增加 `Coverage warning`，並列出各 Rack 的實際／58 差異；不會用假資料補足。
+- Test Features 的 `RACK 1 CASES / EXPECTED` 顯示 Rack 1 實際值／58；`LISTED / RACK 1 CASES` 另行確保最後頁列表與 Rack 1 來源完全一致。
+
+### 21.3 新驗證基準
+
+- Browser fixture 更新為每 Rack 58 Cases、總計 290 Cases；Rack 1 Test Features Excel 應輸出 58 筆資料與 59 列（含 Header）。
+- Overview 應顯示 `290 / 290`；Rack 1～5 應各顯示 `58 / 58`；Test Features 應顯示 `58 / 58` listed/source。
+- 正常 fixture 實測結果符合以上數值，Excel export count 為 58，Browser Console 無 Error／Warning。
+- 缺漏 fixture（每 Rack 57）實測 Overview 變為紅色 `285 / 290`，Tooltip 顯示 5 missing，狀態提示正確列出 Rack 1～5 各為 `57/58`。
