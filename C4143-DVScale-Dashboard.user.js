@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         C4143 DV-Scale Rack Test Status Dashboard
 // @namespace    local.ado.dvscale.dashboard
-// @version      1.8.1
-// @description  Adds sticky one-row dashboard cards, Rack 1 Test Feature tiles, Excel export, and GitHub-hosted updates.
+// @version      1.8.2
+// @description  Adds sticky one-row dashboard cards, synchronized Rack 1 Test Feature tables, Excel export, and GitHub-hosted updates.
 // @homepageURL  https://github.com/alan512627/azure-devops-state-monitoring
 // @supportURL   https://github.com/alan512627/azure-devops-state-monitoring/issues
 // @updateURL    https://raw.githubusercontent.com/alan512627/azure-devops-state-monitoring/main/C4143-DVScale-Dashboard.user.js
@@ -595,7 +595,7 @@
   D.CSS += "\n.tab{font-size:18px;padding:10px 29px;min-height:42px}\n.metric-badge{display:inline-flex;align-items:center;border:1px solid;border-radius:5px;padding:2px 6px;font-size:10.5px;font-weight:700;white-space:nowrap}\n.metric-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:10px 0 14px}\n.metric-section{min-width:0;padding:10px;border:1px solid #1c2942;border-radius:8px;background:#0f1a2e;overflow-x:auto}\n.metric-section h4{margin:0 0 8px;color:#cfe3ff;font-size:12px}\n.metric-total{font-size:12px;color:#bcd9ff;margin:2px 0 8px;font-weight:700}\n.case-links{display:inline;line-height:1.8}\n@media(max-width:980px){.metric-grid{grid-template-columns:1fr}}\n@media(max-width:720px){.tab{font-size:16px;padding:9px 18px;min-height:40px}}";
   D.CSS += "\n.metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}\n.metric-stack{display:grid;gap:12px;align-content:start;min-width:0}\n.metric-section{overflow:hidden}\n.hbar-list{display:grid;gap:10px}\n.hbar-row{padding:9px 10px;border:1px solid #1c2942;border-radius:8px;background:#111d33}\n.hbar-row.total{border-color:#2d527d;background:#12223b}\n.hbar-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:6px}\n.hbar-label{min-width:0;color:#dbeafe;font-size:12px;font-weight:700;overflow-wrap:anywhere}\n.hbar-value{flex:none;color:#a9bdd8;font-size:11px;font-variant-numeric:tabular-nums;text-align:right}\n.hbar-track{height:12px;border-radius:999px;background:#1c2942;overflow:hidden}\n.hbar-fill{height:100%;border-radius:inherit;transition:width .25s ease}\n.hbar-details{margin-top:5px;color:#8fa3c0;font-size:11px}\n.hbar-details>summary{display:flex;align-items:center;min-height:32px;width:max-content;max-width:100%;cursor:pointer;color:#7dd3fc;font-weight:600;list-style:none}\n.hbar-details>summary::-webkit-details-marker{display:none}\n.hbar-details>summary:before{content:'\\25B8';margin-right:5px;color:#5b7ba6;transition:transform .15s}\n.hbar-details[open]>summary:before{transform:rotate(90deg)}\n.hbar-details>summary:hover{color:#bae6fd}\n.hbar-details>summary:focus-visible{outline:2px solid #38bdf8;outline-offset:2px;border-radius:4px}\n.hbar-links{display:flex;flex-wrap:wrap;gap:6px;padding:4px 0 2px 16px}\n@media(max-width:980px){.metric-grid{grid-template-columns:1fr}}\n@media(max-width:720px){.hbar-head{align-items:flex-start;flex-direction:column;gap:3px}.hbar-value{text-align:left}.hbar-row{padding:9px}.hbar-details>summary{min-height:40px}.hbar-links{padding-left:8px}}";
   D.CSS += "\n.bug-detail-scroll{max-width:100%;overflow-x:auto;margin-top:8px}\n.bug-detail-scroll>table{min-width:640px}";
-  D.CSS += "\n.suite-intro{margin:0 0 12px;color:#9fb3d0;font-size:12px}\n.suite-toolbar{display:grid;grid-template-columns:minmax(150px,220px) minmax(240px,1fr);gap:12px;width:min(760px,100%);margin-bottom:14px}\n.suite-toolbar>*{width:100%;min-width:0}\n.feature-groups{display:grid;gap:14px}\n.feature-group{min-width:0;border:1px solid #253858;border-radius:10px;background:#0f1a2e;padding:12px}\n.feature-group-head{display:flex;align-items:center;gap:8px;margin-bottom:10px}\n.feature-group-name{margin:0;color:#e0f2fe;font-size:15px}\n.suite-pill{display:inline-flex;padding:2px 8px;border-radius:999px;background:#193657;color:#bae6fd;border:1px solid #2d527d;font-size:11px;font-weight:700}\n.feature-case-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(360px,100%),1fr));gap:10px}\n.feature-case-card{min-width:0;border:1px solid #1c2942;border-left:4px solid #94a3b8;border-radius:8px;background:#0c1729;padding:10px;transition:transform .15s,filter .15s}\n.feature-case-card:hover{transform:translateY(-2px);filter:brightness(1.1)}\n.feature-case-head{display:flex;align-items:center;gap:8px;margin-bottom:7px}\n.feature-case-title{min-height:38px;color:#d7e3f4;font-size:13px;font-weight:600;line-height:1.45}\n.feature-case-meta{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0}\n.feature-meta{display:inline-flex;padding:2px 6px;border-radius:5px;background:#16243d;border:1px solid #27395c;color:#bcd9ff;font-size:10.5px;white-space:nowrap}\n.feature-fields{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 8px;margin:8px 0 0;font-size:11px}\n.feature-fields dt{color:#7d93b3}.feature-fields dd{margin:0;color:#cbd8ea;overflow-wrap:anywhere}\n.feature-bugs{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}\n@media(max-width:720px){.suite-toolbar{grid-template-columns:1fr}.feature-case-grid{grid-template-columns:1fr}}";
+  D.CSS += "\n.suite-intro{margin:0 0 12px;color:#9fb3d0;font-size:12px}\n.suite-toolbar{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;width:min(980px,100%);margin-bottom:14px}\n.suite-toolbar>*{width:100%;min-width:0}\n.feature-groups{display:grid;gap:8px}\ndetails.feature-group{min-width:0;border:1px solid #253858;border-radius:9px;background:#0f1a2e;overflow:hidden}\ndetails.feature-group[open]{border-color:#35618f;background:#101d33}\n.feature-summary{display:flex;align-items:center;gap:8px;padding:11px 13px;cursor:pointer;list-style:none}\n.feature-summary::-webkit-details-marker{display:none}\n.feature-summary:before{content:'\\25B8';color:#7dd3fc;transition:transform .15s}\ndetails.feature-group[open]>.feature-summary:before{transform:rotate(90deg)}\n.feature-summary:hover{background:#152744}\n.feature-group-name{color:#e0f2fe;font-size:15px;font-weight:700}\n.suite-pill{display:inline-flex;padding:2px 8px;border-radius:999px;background:#193657;color:#bae6fd;border:1px solid #2d527d;font-size:11px;font-weight:700}\n.feature-group-body{padding:0 12px 12px 28px}\n.feature-table-scroll{max-width:100%;overflow:auto;border:1px solid #1c2942;border-radius:7px}\ntable.feature-table{min-width:1320px;background:#0c1729}\n.feature-table th{position:sticky;top:0;background:#132039;z-index:1}\n.feature-table td{vertical-align:top;line-height:1.4}\n.feature-table .feature-id{width:86px;font-family:Consolas,monospace}\n.feature-table .feature-title{min-width:420px;color:#d7e3f4}\n.feature-table .feature-owner{min-width:150px}\n.feature-table .feature-comments{min-width:240px;max-width:420px;white-space:normal;overflow-wrap:anywhere}\n.feature-case-row{border-left:3px solid transparent}\n.feature-case-row:hover{background:#152341}\n.feature-bugs{min-width:160px}\n.feature-bugs .bug-link{margin:1px 4px 1px 0}\n@media(max-width:720px){.suite-toolbar{grid-template-columns:repeat(2,minmax(0,1fr))}.suite-toolbar>input{grid-column:1/-1}.feature-group-body{padding-left:10px}.feature-summary{padding:12px 10px}}";
   D.CSS += "\n.dashboard-main{display:grid;grid-template-columns:64px minmax(0,1fr);align-items:start;min-width:0}\n#panels{min-width:0}\n.tabs{display:flex;flex-direction:column;flex-wrap:nowrap;align-items:center;gap:4px;width:64px;min-width:64px;padding:10px 6px 60px 8px}\n.tab{display:flex;align-items:center;justify-content:center;flex:0 0 auto;width:50px;min-width:50px;max-width:50px;min-height:72px;height:auto;padding:8px 5px;border:1px solid #1e2b45;border-radius:6px;background:#111d33;color:#9fb3d0;writing-mode:vertical-rl;text-orientation:mixed;white-space:nowrap;font-size:11px;line-height:1.1}\n.tab.active{background:#16243d;color:#fff;font-weight:600;box-shadow:inset 3px 0 0 #38bdf8}\n.panel{min-width:0;padding:16px 20px 60px 14px}\n@media(max-width:720px){.dashboard-main{grid-template-columns:54px minmax(0,1fr)}.tabs{width:54px;min-width:54px;padding:8px 4px 40px}.tab{width:44px;min-width:44px;max-width:44px;min-height:66px;padding:7px 4px;font-size:10px}.panel{padding:12px 10px 50px 8px}}";
   D.CSS += "\n:root{--dvdash-controls-height:52px}\n.tabs{position:sticky;top:calc(var(--dvdash-controls-height) + 8px);align-self:start;z-index:12;max-height:calc(100vh - var(--dvdash-controls-height) - 16px);overflow-y:auto;scrollbar-width:thin}\n.panel-sticky,.suite-sticky{position:sticky;top:var(--dvdash-controls-height);z-index:11;background:#0b1220;padding-top:8px;padding-bottom:12px;box-shadow:0 12px 18px rgba(3,8,18,.42)}\n.panel-sticky>.cards,.suite-sticky>.cards{margin-bottom:0}\n@media(max-width:980px), (max-height:700px){.panel-sticky,.suite-sticky{position:static;box-shadow:none;padding-top:0}}\n@media(max-width:720px){.tabs{top:calc(var(--dvdash-controls-height) + 6px);max-height:calc(100vh - var(--dvdash-controls-height) - 12px)}}";
   D.card = function (k, v, tone) {
@@ -805,71 +805,85 @@
     setTimeout(function () { URL.revokeObjectURL(link.href); }, 5000);
     D.setStatus('Downloaded Excel workbook with ' + result.count + ' Rack 1 Test Feature case rows.', 'info');
   };
-  D.featureCaseCard = function (entry, featureName) {
-    var testCase = entry.testCase, fields = testCase.suiteFields || {}, metrics = testCase.metrics || {};
-    var card = D.el('article', 'feature-case-card'); card.style.borderLeftColor = D.colorFor(testCase.state);
-    var head = D.el('div', 'feature-case-head'), idLink = D.el('a', 'caseid', '#' + testCase.id);
-    idLink.href = D.wiUrl(testCase.id); idLink.target = '_blank'; idLink.rel = 'noopener'; head.appendChild(idLink);
-    head.appendChild(D.el('span', 'spacer')); head.appendChild(D.chip(testCase.state)); card.appendChild(head);
-    card.appendChild(D.el('div', 'feature-case-title', testCase.title));
-    var meta = D.el('div', 'feature-case-meta'), priority = D.priorityLevel(metrics.priority);
-    [
-      D.hasMetric(metrics.priority) ? (priority ? 'P' + priority : D.displayFieldValue(metrics.priority)) : 'Priority -',
-      'Sample ' + D.displayFieldValue(metrics.sampleSize), 'Cycles ' + D.displayFieldValue(metrics.numberOfCycles),
-      'Duration ' + D.displayFieldValue(metrics.testDuration), 'Changed ' + D.fmt(testCase.changed)
-    ].forEach(function (value) { meta.appendChild(D.el('span', 'feature-meta', value)); });
-    card.appendChild(meta);
-    var detail = D.el('dl', 'feature-fields');
-    [['Script type', fields.scriptType], ['CRC SDK', fields.crcSdk], ['IGS Owner', fields.igsOwner], ['Comments', fields.comments]].forEach(function (row) {
-      detail.appendChild(D.el('dt', null, row[0])); detail.appendChild(D.el('dd', null, D.displayFieldValue(row[1])));
+  D.featureCaseTable = function (entries, featureName) {
+    var scroll = D.el('div', 'feature-table-scroll');
+    var table = D.el('table', 'feature-table'), thead = D.el('thead'), header = D.el('tr');
+    ['ID', 'Title', 'State', 'Changed', 'Priority', 'Sample Size', 'Cycles', 'Duration', 'Script type', 'CRC SDK', 'IGS Owner', 'Linked Bugs', 'Comments'].forEach(function (label) { header.appendChild(D.el('th', null, label)); });
+    thead.appendChild(header); table.appendChild(thead);
+    var tbody = D.el('tbody');
+    entries.forEach(function (entry) {
+      var testCase = entry.testCase, fields = testCase.suiteFields || {}, metrics = testCase.metrics || {};
+      var row = D.el('tr', 'feature-case-row'); row.style.borderLeftColor = D.colorFor(testCase.state);
+      row.title = 'Rack: ' + entry.rack.label + ' · Feature: ' + featureName + ' · State: ' + testCase.state;
+      var idCell = D.el('td', 'feature-id'), idLink = D.el('a', 'caseid', String(testCase.id));
+      idLink.href = D.wiUrl(testCase.id); idLink.target = '_blank'; idLink.rel = 'noopener'; idCell.appendChild(idLink); row.appendChild(idCell);
+      row.appendChild(D.el('td', 'feature-title', testCase.title));
+      var stateCell = D.el('td'); stateCell.appendChild(D.chip(testCase.state)); row.appendChild(stateCell);
+      row.appendChild(D.el('td', null, D.fmt(testCase.changed)));
+      var priority = D.priorityLevel(metrics.priority);
+      row.appendChild(D.el('td', null, D.hasMetric(metrics.priority) ? (priority ? 'P' + priority : D.displayFieldValue(metrics.priority)) : '-'));
+      row.appendChild(D.el('td', null, D.displayFieldValue(metrics.sampleSize)));
+      row.appendChild(D.el('td', null, D.displayFieldValue(metrics.numberOfCycles)));
+      row.appendChild(D.el('td', null, D.displayFieldValue(metrics.testDuration)));
+      row.appendChild(D.el('td', null, D.displayFieldValue(fields.scriptType)));
+      row.appendChild(D.el('td', null, D.displayFieldValue(fields.crcSdk)));
+      row.appendChild(D.el('td', 'feature-owner', D.displayFieldValue(fields.igsOwner)));
+      var bugs = D.el('td', 'feature-bugs');
+      if ((testCase.bugs || []).length) (testCase.bugs || []).forEach(function (bug) { bugs.appendChild(D.bugLink(bug)); });
+      else bugs.textContent = '-';
+      row.appendChild(bugs);
+      var comments = D.displayFieldValue(fields.comments), commentsCell = D.el('td', 'feature-comments', comments);
+      commentsCell.title = comments === '-' ? '' : comments; row.appendChild(commentsCell);
+      row._featureSearch = [testCase.id, testCase.title, featureName, entry.rack.label, testCase.state, metrics.priority,
+        metrics.sampleSize, metrics.numberOfCycles, metrics.testDuration, D.fmt(testCase.changed),
+        (testCase.bugs || []).map(function (bug) { return 'BUG #' + bug.id + ' ' + bug.title + ' ' + bug.state; }).join(' '),
+        D.displayFieldValue(fields.scriptType), D.displayFieldValue(fields.crcSdk), D.displayFieldValue(fields.igsOwner), comments].join(' ').toLowerCase();
+      tbody.appendChild(row);
     });
-    card.appendChild(detail);
-    var bugs = D.el('div', 'feature-bugs');
-    if ((testCase.bugs || []).length) (testCase.bugs || []).forEach(function (bug) { bugs.appendChild(D.bugLink(bug)); });
-    else bugs.appendChild(D.el('span', 'small', 'No linked Bugs'));
-    card.appendChild(bugs);
-    card._featureSearch = [testCase.id, testCase.title, featureName, testCase.state, metrics.priority, metrics.sampleSize,
-      metrics.numberOfCycles, metrics.testDuration, D.fmt(testCase.changed), D.displayFieldValue(fields.scriptType),
-      D.displayFieldValue(fields.crcSdk), D.displayFieldValue(fields.igsOwner), D.displayFieldValue(fields.comments),
-      (testCase.bugs || []).map(function (bug) { return 'BUG #' + bug.id + ' ' + bug.title + ' ' + bug.state; }).join(' ')].join(' ').toLowerCase();
-    return card;
+    table.appendChild(tbody); scroll.appendChild(table); return scroll;
   };
   D.suitePanel = function () {
     var wrap = D.el('div'), groups = D.featureInventory(), allEntries = [];
     groups.forEach(function (group) { allEntries = allEntries.concat(group.cases); });
+    var rackCaseCount = D.S.racks[0] ? D.collect(D.S.racks[0], 'Test Case').length : 0;
     var unmapped = (groups.filter(function (group) { return group.name === 'Unmapped'; })[0] || { cases: [] }).cases.length;
     var sticky = D.el('div', 'suite-sticky'), cards = D.el('div', 'cards');
     [
       D.card('RACK 1 TEST FEATURES', groups.filter(function (group) { return group.name !== 'Unmapped'; }).length, '#38bdf8'),
-      D.card('RACK 1 CASES', allEntries.length, '#c084fc'),
-      D.card('MAPPED CASES', allEntries.length - unmapped, '#34d399'),
+      D.card('RACK 1 CASES', rackCaseCount, '#c084fc'),
+      D.card('LISTED / RACK 1 CASES', allEntries.length + ' / ' + rackCaseCount, allEntries.length === rackCaseCount ? '#34d399' : '#fb7185'),
       D.card('UNMAPPED CASES', unmapped, unmapped ? '#fb7185' : '#2dd4bf')
     ].forEach(function (card) { cards.appendChild(card); });
     sticky.appendChild(cards); wrap.appendChild(sticky);
-    wrap.appendChild(D.el('p', 'suite-intro', 'This flat view is rebuilt directly from the current Rack 1 Feature hierarchy after every query. Every Rack 1 Test Case is grouped under its nearest parent Test Feature and uses the same live State, Bug and metric data as the Rack 1 tab.'));
+    wrap.appendChild(D.el('p', 'suite-intro', 'This list is rebuilt directly from the current Rack 1 Feature hierarchy after every query. Every Rack 1 Test Case is grouped under its nearest parent Test Feature and uses the same live State, Bug and metric data as the Rack 1 tab.'));
     var toolbar = D.el('div', 'suite-toolbar');
+    var expand = D.el('button', null, 'Expand all'), collapse = D.el('button', null, 'Collapse all');
     var download = D.el('button', 'primary', 'Download Excel (.xls)'), search = D.el('input');
     download.id = 'suiteExcelBtn'; download.title = 'Download all Rack 1 Test Feature case fields for Excel';
     search.placeholder = 'Search feature / case / state / field …';
-    toolbar.appendChild(download); toolbar.appendChild(search); wrap.appendChild(toolbar);
+    toolbar.appendChild(expand); toolbar.appendChild(collapse); toolbar.appendChild(download); toolbar.appendChild(search); wrap.appendChild(toolbar);
     var groupsHost = D.el('div', 'feature-groups'); wrap.appendChild(groupsHost);
-    groups.forEach(function (group) {
-      var section = D.el('section', 'feature-group'), head = D.el('div', 'feature-group-head');
-      head.appendChild(D.el('h3', 'feature-group-name', group.name)); head.appendChild(D.el('span', 'suite-pill', group.cases.length + ' cases'));
-      section.appendChild(head);
-      var grid = D.el('div', 'feature-case-grid');
-      group.cases.forEach(function (entry) { grid.appendChild(D.featureCaseCard(entry, group.name)); });
-      section.appendChild(grid); groupsHost.appendChild(section);
+    groups.forEach(function (group, index) {
+      var details = D.el('details', 'feature-group'); if (index === 0) details.open = true;
+      var summary = D.el('summary', 'feature-summary');
+      summary.appendChild(D.el('span', 'feature-group-name', group.name)); summary.appendChild(D.el('span', 'suite-pill', group.cases.length + ' cases'));
+      details.appendChild(summary);
+      var body = D.el('div', 'feature-group-body'); body.appendChild(D.featureCaseTable(group.cases, group.name)); details.appendChild(body);
+      groupsHost.appendChild(details);
     });
+    expand.addEventListener('click', function () { wrap.querySelectorAll('details.feature-group').forEach(function (details) { details.open = true; }); });
+    collapse.addEventListener('click', function () { wrap.querySelectorAll('details.feature-group').forEach(function (details) { details.open = false; }); });
     download.addEventListener('click', function () { D.exportSuiteExcel(); });
     search.addEventListener('input', function () { D.applySuiteFilter(wrap, search.value); });
     return wrap;
   };
   D.applySuiteFilter = function (panel, text) {
     text = String(text || '').trim().toLowerCase();
-    panel.querySelectorAll('.feature-case-card').forEach(function (card) { card.classList.toggle('hide', !!text && card._featureSearch.indexOf(text) < 0); });
+    panel.querySelectorAll('.feature-case-row').forEach(function (row) { row.classList.toggle('hide', !!text && row._featureSearch.indexOf(text) < 0); });
     panel.querySelectorAll('.feature-group').forEach(function (group) {
-      group.classList.toggle('hide', !!text && !group.querySelector('.feature-case-card:not(.hide)'));
+      var visible = group.querySelectorAll('.feature-case-row:not(.hide)').length;
+      group.classList.toggle('hide', !!text && !visible);
+      if (text && visible) group.open = true;
     });
   };
   D.rackTable = function () {

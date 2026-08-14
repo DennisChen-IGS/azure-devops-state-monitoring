@@ -4,14 +4,16 @@ C4143 DV-Scale Rack Test Status Dashboard 是一個 Tampermonkey userscript。�
 
 ## 目前版本
 
-- Dashboard：[C4143-DVScale-Dashboard.user.js](./C4143-DVScale-Dashboard.user.js)（固定安裝網址，腳本內版本 v1.8.1）
+- Dashboard：[C4143-DVScale-Dashboard.user.js](./C4143-DVScale-Dashboard.user.js)（固定安裝網址，腳本內版本 v1.8.2）
 - 開發與維護文件：[C4143-DVScale-Dashboard-HANDOFF.md](./C4143-DVScale-Dashboard-HANDOFF.md)
 - Azure DevOps organization：`https://azurecsi.visualstudio.com`
 - Azure DevOps project：`Dev`
 
 ## Test Features 分頁
 
-v1.8.1 將最後一頁改為 `Test Features`。每次 Query 後直接遍歷 Rack 1 的最新 Work Item 階層，把全部 Rack 1 Test Case 依最近的上層 Feature 動態分組，不再依賴預先寫死的 Case Title 清單。每個 Feature 區塊以平鋪 Case 卡片顯示 ID、Title、State、Changed Date、Priority、Sample Size、Number of Cycles、Test Duration、Script type、CRC SDK、IGS Owner、Linked Bugs 與 Comments；Search 可同時篩選上述資料。
+v1.8.2 的 `Test Features` 每次 Query 後直接遍歷 Rack 1 的最新 Work Item 階層，把全部 Rack 1 Test Case 依最近的上層 Feature 動態分組，不再依賴預先寫死的 Case Title 清單。畫面恢復為原本的 Feature 展開／收合與 Case 表格列表，顯示 ID、Title、State、Changed Date、Priority、Sample Size、Number of Cycles、Test Duration、Script type、CRC SDK、IGS Owner、Linked Bugs 與 Comments；Search 可同時篩選上述資料。
+
+頁面上的 `LISTED / RACK 1 CASES` 卡片會直接比較最後一頁列出的 Case 數與 Rack 1 分頁的 Case 數，正常情況應顯示相同數值，例如 `54 / 54`。
 
 v1.7.2 將 Overview、Rack 1～5 與最後一頁改為左側直式導覽。分頁上下排列，文字整段旋轉顯示；桌面版導覽寬 64px、按鈕寬 50px、字體 11px，窄螢幕自動縮為 54px／44px／10px，不占用右側 Dashboard 的資料空間。
 

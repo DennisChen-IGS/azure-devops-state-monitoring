@@ -5,11 +5,11 @@
 | 文件版本 | 2.0 |
 | 初版日期 | 2026-07-28 |
 | 最後更新 | 2026-08-14 |
-| 最新腳本 | `C4143-DVScale-Dashboard.user.js`（v1.8.1） |
-| 最新腳本大小 | 93595 bytes（約 91.4 KB） |
+| 最新腳本 | `C4143-DVScale-Dashboard.user.js`（v1.8.2） |
+| 最新腳本大小 | 95281 bytes（約 93.0 KB） |
 | 執行環境 | Chrome + Tampermonkey，需已登入 Azure DevOps（azurecsi） |
 
-> 第 1～12 節保留 v1.2 建置時的原始設計與調查紀錄；第 13 節為 v1.3～v1.6.2 的後續開發補充，第 14 節為 Test Suites 分頁，第 15 節為 v1.7.1 自動更新入口，第 16 節為 v1.7.2 左側直式分頁，第 17 節為 v1.7.3 提示淡出修正，第 18 節為 v1.8.0 sticky 與 Excel 匯出，第 19 節為 v1.8.1 固定範圍與 Rack 1 Test Features 平鋪頁。
+> 第 1～12 節保留 v1.2 建置時的原始設計與調查紀錄；第 13 節為 v1.3～v1.6.2 的後續開發補充，第 14 節為 Test Suites 分頁，第 15 節為 v1.7.1 自動更新入口，第 16 節為 v1.7.2 左側直式分頁，第 17 節為 v1.7.3 提示淡出修正，第 18 節為 v1.8.0 sticky 與 Excel 匯出，第 19 節為 v1.8.1 固定範圍與 Rack 1 Test Features 平鋪頁，第 20 節為 v1.8.2 Test Features 列表復原與數量同步。
 
 ---
 
@@ -46,7 +46,7 @@
 
 | 檔案 / Key | 說明 |
 | --- | --- |
-| `C4143-DVScale-Dashboard.user.js` | 最新主交付物與固定安裝入口，Tampermonkey userscript v1.8.1 |
+| `C4143-DVScale-Dashboard.user.js` | 最新主交付物與固定安裝入口，Tampermonkey userscript v1.8.2 |
 | `C4143-DVScale-Dashboard.user_v1.6.1-bug-priority-severity.js` | 上一個穩定版本，保留供回退與比對 |
 | `C4143-DVScale-Dashboard-snapshot.html` | 由頁面上 **Export offline snapshot .html** 按鈕產生的離線單檔（含資料 + 程式碼） |
 | `HANDOFF.md` | 本文件 |
@@ -296,6 +296,7 @@ document-idle → hash 含 dvdash？ → D.boot()
 | v1.7.3 | re-query 的資訊與黃色警告提示改為 4.5 秒後淡出、5.2 秒後隱藏；紅色載入錯誤維持顯示 |
 | v1.8.0 | 左側分頁與摘要／圖表區支援 sticky；Test Suites 同步 Case 欄位並新增 Excel `.xls` 匯出 |
 | v1.8.1 | Sticky 僅保留摘要卡以上，圖表開始正常捲動；卡片維持單列；最後一頁依 Rack 1 即時 Feature 階層平鋪全部 Case |
+| v1.8.2 | Test Features 恢復 Feature 下拉與 Case 表格列表；資料仍由 Rack 1 階層動態產生，並顯示列表數／Rack 1 Case 數同步檢查 |
 
 ---
 
@@ -472,7 +473,7 @@ v1.6.2 完成後執行以下檢查：
 
 ### 14.1 交付檔案
 
-- 最新 userscript：`C4143-DVScale-Dashboard.user.js`（目前 `@version` 1.8.1）
+- 最新 userscript：`C4143-DVScale-Dashboard.user.js`（目前 `@version` 1.8.2）
 - 基準來源：v1.6.2，原有 Overview、Rack 1～5、Bug、Priority、Sample Size、Number_of_cycles 與 Test Duration 功能均保留。
 - 新增第 7 個分頁：`Test Suites`。
 
@@ -642,3 +643,15 @@ Tampermonkey 會按設定的更新間隔讀取固定 URL，比較 `@version`，�
 - 捲動 1100px 時 `.panel-sticky` Top 為 84px、左側 Tabs Top 為 92px；Overview 圖表 Bottom 已為負值，確認圖表會捲離畫面而摘要卡維持固定。
 - Test Features 由 Rack 1 階層產生 12 個 Feature、54 張 Case 卡片、0 個舊式 `details` 下拉；搜尋 `Performance` 後只保留 1 個 Feature／2 個 Case。
 - Excel 實際下載為 55 列（含 Header）× 16 欄，工作表 `Rack 1 Features`，AutoFilter `R1C1:R55C16`；Browser Console 無 Error／Warning。
+
+---
+
+## 20. 2026-08-14 Test Features 列表復原與 Rack 1 數量同步（v1.8.2）
+
+- 保留 `D.featureInventory()` 的動態 Rack 1 資料來源，不恢復固定 Case Title 清單。
+- Test Features 顯示方式由平鋪 Case 卡片改回 Feature `details` 展開／收合與橫向可捲動 Case table。
+- 每個 Feature 表格共 13 欄：ID、Title、State、Changed、Priority、Sample Size、Cycles、Duration、Script type、CRC SDK、IGS Owner、Linked Bugs、Comments。
+- 工具列恢復 **Expand all**、**Collapse all**，並保留 Excel 下載與 Search；搜尋命中時自動展開對應 Feature。
+- 新增 `LISTED / RACK 1 CASES` 摘要卡，左值來自列表實際 entries，右值直接來自 `D.collect(D.S.racks[0], 'Test Case')`；兩者相同時使用綠色標示，不一致時改為紅色。
+- Browser fixture 驗證 Rack 1 卡片為 54、列表為 54 rows，對照卡顯示 `54 / 54`；12 個 Feature 執行 Expand all 後全部開啟、Collapse all 後全部關閉。
+- 搜尋 `Performance` 後只保留 Performance Feature 與 2 筆 Case；表格 13 欄完整，Browser Console 無 Error／Warning。
