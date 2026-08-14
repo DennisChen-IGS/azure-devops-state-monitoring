@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         C4143 DV-Scale Rack Test Status Dashboard
 // @namespace    local.ado.dvscale.dashboard
-// @version      1.8.0
-// @description  Adds sticky dashboard summaries, synchronized Test Suites fields, Excel export, and GitHub-hosted updates.
+// @version      1.8.1
+// @description  Adds sticky one-row dashboard cards, Rack 1 Test Feature tiles, Excel export, and GitHub-hosted updates.
 // @homepageURL  https://github.com/alan512627/azure-devops-state-monitoring
 // @supportURL   https://github.com/alan512627/azure-devops-state-monitoring/issues
 // @updateURL    https://raw.githubusercontent.com/alan512627/azure-devops-state-monitoring/main/C4143-DVScale-Dashboard.user.js
@@ -73,78 +73,6 @@
     igsOwner: { aliases: ['IGS Owner'] },
     comments: { aliases: ['Comments', 'Comment'] }
   };
-  D.SUITE_DEFINITIONS = [
-    ['Enumeration', [
-      'Test & verify CPU & its properties enumerated correctly in CloudHost OS.',
-      'Test & verify all E1.S devices enumerated & its their SMART properties in CloudHost OS.',
-      'Test & verify DC-SCM & its properties enumerated correctly in CloudHost OS.',
-      'Test & verify all populated memory slots are enumerated & all its properties shown correctly in CloudHost OS.',
-      'Test & verify Glacier Peak Cerberus enumeration with basic queries payload in OS.',
-      'Test & verify M.2 device enumeration & SMART properties in CloudHost OS.',
-      'Test & verify Glacier Peak enumeration & its properties in CloudHost OS.',
-      'Test & verify PCIe & its properties enumerated correctly in CloudHost OS.',
-      'Test & verify HPM FRU content to make sure follow the FRU spec',
-      'Test & verify DC-SCM FRU content to make sure follow the FRU spec',
-      'Test & verify OVL2 FRU content to make sure follow the FRU spec',
-      'Test & verify PDB FRU content to make sure follow the FRU spec',
-      'Test & verify Glacier Peak firmware version enumerated correctly',
-      'Test & verify TPM firmware version enumerated correctly',
-      'Test & verify Manticore firmware version enumerated correctly',
-      'Test & verify IFWI firmware version enumerated correctly',
-      'Test & verify BMC & TIP firmware version enumerated correctly',
-      'Test & verify BMC Service Config firmware version enumerated correctly',
-      'Test & verify HPM-CPLD firmware version enumerated correctly',
-      'Test & verify SCM-CPLD firmware version enumerated correctly',
-      'Test & verify E1.S firmware version enumerated correctly',
-      'Test & verify M.2 firmware version enumerated correctly',
-      'Test & verify VR firmware version enumerated correctly',
-      'Test & verify R-SCM subsystem firmware version enumerated correctly',
-      'Test & verify Power Shelf/PSU firmware version enumerated correctly',
-      'Test & verify PDB firmware version enumerated correctly'
-    ]],
-    ['IFWI', [
-      'Run IFWI firmware updates via Rack-SCM',
-      'Run IFWI firmware updates via utility under CloudHost OS'
-    ]],
-    ['BMC', [
-      'Run BMC firmware updates via R-SCM',
-      'Run BMC Service Config update via R-SCM command with full system stress in parallel'
-    ]],
-    ['Manticore', ['Run Manticore firmware updates with full system stress followed by AC Cycle via RSCM']],
-    ['GP', ['[RSCM] Verify Glacier Peak Subsystem FW Update']],
-    ['E.1s', ['System E1.S storage devices firmware updates with full system stress under CloudHost OS']],
-    ['M.2', ['System onboard boot M.2 firmware updates with full system stress under CloudHost OS']],
-    ['Stability', [
-      'AC cycle tests with No stress using R-SCM command',
-      'DC cycle tests with No stress using R-SCM command',
-      'Warm reboot OS cycle tests with no stress using R-SCM command',
-      'PXE AC cycle tests with No stress (GN)',
-      'PXE DC cycle tests with No stress (GN)',
-      'PXE Warm reboot OS cycle tests with no stress (GN) - Copy',
-      'AC cycle tests with stress in between using R-SCM command',
-      'DC cycle tests with stress in between using R-SCM command',
-      'Warm reboot OS cycle tests with stress in between using R-SCM command'
-    ]],
-    ['Stress', [
-      'Full System Stress for 48 hrs',
-      'Run IdleStress with BMC sensor telemetry'
-    ]],
-    ['Virtualization', [
-      'Create virtual switch with SR-IOV under CloudHost OS',
-      'SRIOV enable check',
-      'Create VM with windos OS'
-    ]],
-    ['MPF', [
-      'Verify MPF various functions on E1.S',
-      'MPF with heavy I/O stress',
-      'Various VM type performance requirement test with MPF Configuration',
-      'Perform cycle tests with No stress on MPF config'
-    ]],
-    ['Performance', [
-      'Diskspd - iostat / SR / SW / RR / RW',
-      'Host to host full duplex mode dual port on BM'
-    ]]
-  ];
   D.S = {racks:[],loadedAt:null,range:"all",chartType:"pie",panels:[],active:0,mode:"live"};
   D.el = function (t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; };
   D.svg = function (t, a) { var e = document.createElementNS('http://www.w3.org/2000/svg', t); for (var k in a) e.setAttribute(k, a[k]); return e; };
@@ -211,19 +139,6 @@
   };
   D.normalizeFieldName = function (value) {
     return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
-  };
-  D.normalizeSuiteTitle = function (value) {
-    return String(value || '').replace(/^(\[[^\]]+\]\s*)+/, '').replace(/[\u2013\u2014]/g, '-').replace(/\s+/g, ' ').trim().toLowerCase();
-  };
-  D.suiteFor = function (testCase) {
-    var title = D.normalizeSuiteTitle(testCase && testCase.title);
-    for (var i = 0; i < D.SUITE_DEFINITIONS.length; i++) {
-      var titles = D.SUITE_DEFINITIONS[i][1];
-      for (var j = 0; j < titles.length; j++) {
-        if (D.normalizeSuiteTitle(titles[j]) === title) return D.SUITE_DEFINITIONS[i][0];
-      }
-    }
-    return 'Unmapped';
   };
   D.displayFieldValue = function (value) {
     if (value == null || value === '') return '-';
@@ -676,13 +591,13 @@
     return wrap;
   };
   D.CSS = "*{box-sizing:border-box}\nbody{margin:0;font-family:\"Segoe UI\",Roboto,\"Noto Sans TC\",\"Microsoft JhengHei\",sans-serif;background:#0b1220;color:#e2e8f0;font-size:14px}\na{color:#7dd3fc;text-decoration:none}a:hover{text-decoration:underline}\nheader{padding:14px 20px;background:linear-gradient(90deg,#132039,#0d1729);border-bottom:1px solid #1e2b45;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}\nh1{font-size:18px;margin:0 0 4px}\n.sub{font-size:12px;color:#8fa3c0}\n.controls{display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:10px 20px;background:#0e1830;border-bottom:1px solid #1e2b45;position:sticky;top:0;z-index:20}\n.controls label{font-size:12px;color:#9fb3d0;display:flex;gap:6px;align-items:center}\nselect,button,input{background:#16243d;color:#e2e8f0;border:1px solid #27395c;border-radius:6px;padding:6px 10px;font-size:13px;font-family:inherit}\nbutton{cursor:pointer}button:hover{background:#1e3a5f}\nbutton.primary{background:#2563eb;border-color:#2563eb}button.primary:hover{background:#1d4ed8}\n.tabs{display:flex;flex-wrap:wrap;gap:4px;padding:10px 20px 0}\n.tab{padding:8px 16px;border-radius:8px 8px 0 0;background:#111d33;border:1px solid #1e2b45;border-bottom:none;color:#9fb3d0;cursor:pointer;font-size:13px}\n.tab.active{background:#16243d;color:#fff;font-weight:600;box-shadow:inset 0 3px 0 #38bdf8}\n.panel{display:none;padding:16px 20px 60px}.panel.active{display:block}\n.cards{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:14px;align-items:center}\n.card{background:#111d33;border:1px solid #1e2b45;border-radius:10px;padding:10px 16px;min-width:110px}\n.card .k{font-size:10px;color:#8fa3c0;letter-spacing:.05em}\n.card .v{font-size:22px;font-weight:700;margin-top:2px}\n.grid{display:grid;grid-template-columns:minmax(300px,1fr) minmax(320px,1.15fr);gap:14px;margin-bottom:16px}\n@media(max-width:980px){.grid{grid-template-columns:1fr}}\n.box{background:#111d33;border:1px solid #1e2b45;border-radius:10px;padding:14px}\n.box h3{margin:0 0 10px;font-size:12px;color:#cbd8ea;letter-spacing:.05em;text-transform:uppercase}\n.chartwrap{height:300px}\n.legend{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;justify-content:center}\ntable{width:100%;border-collapse:collapse;font-size:13px}\nth,td{text-align:left;padding:6px 8px;border-bottom:1px solid #1c2942}\nth{color:#8fa3c0;font-size:10px;text-transform:uppercase;letter-spacing:.05em}\ntr.total td{font-weight:700;border-top:2px solid #27395c;border-bottom:none}\ntd.num,th.num{text-align:right;font-variant-numeric:tabular-nums}\n.chip{display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;white-space:nowrap;color:#0b1220}\n.bar{height:8px;border-radius:4px;background:#1c2942;overflow:hidden;display:flex;min-width:70px}\ndetails.node{border:1px solid #1c2942;border-radius:8px;margin:6px 0;background:#0f1a2e}\ndetails.node[open]{background:#101d33}\ndetails.node>summary{cursor:pointer;padding:8px 12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;list-style:none}\ndetails.node>summary::-webkit-details-marker{display:none}\ndetails.node>summary:before{content:\"\\25B8\";color:#5b7ba6;font-size:12px;transition:transform .15s}\ndetails.node[open]>summary:before{transform:rotate(90deg)}\ndetails.node>summary:hover{background:#152341}\n.nodebody{padding:2px 10px 10px 24px}\n.ntitle{font-weight:600}\n.lvl1>summary>.ntitle{color:#f0f6ff;font-size:14px}\n.lvl2>summary>.ntitle{color:#cfe3ff;font-size:13px}\n.lvl3>summary>.ntitle{color:#b7cdea;font-size:12.5px;font-weight:500}\n.type{font-size:10px;color:#7d93b3;border:1px solid #27395c;border-radius:4px;padding:1px 5px}\n.spacer{flex:1}\n.caserow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:6px 10px;border-bottom:1px dashed #1c2942;font-size:13px}\n.caserow:hover{background:#152341}\n.caseid{font-family:Consolas,monospace;font-size:12px;color:#7dd3fc;min-width:64px}\n.casetitle{flex:1;min-width:200px;color:#d7e3f4}\n.date{font-size:11px;color:#7d93b3;font-variant-numeric:tabular-nums}\n.banner{margin:10px 20px;padding:10px 14px;border-radius:8px;font-size:13px;border:1px solid}\n.banner.info{background:#10233d;border-color:#27507f;color:#bcd9ff}\n.banner.warn{background:#3a2a10;border-color:#7a5a1c;color:#ffd9a0}\n.banner.err{background:#3a1620;border-color:#7f2740;color:#ffc2cf}\n.hide{display:none!important}\n.small{font-size:11px;color:#8fa3c0}\n.empty{padding:14px;text-align:center;color:#8fa3c0;font-size:13px}";
-  D.CSS += "\n.type-badge{font-weight:700;letter-spacing:.02em}\n.colour-key{display:inline-flex;flex-wrap:wrap;gap:5px;align-items:center;padding-left:8px;border-left:1px solid #27395c}\n.tab{font-size:14px;padding:10px 18px;min-height:40px}\n.banner{position:fixed;right:20px;bottom:20px;z-index:100;max-width:min(680px,calc(100vw - 40px));margin:0;padding:11px 14px;box-shadow:0 14px 36px rgba(0,0,0,.38);opacity:1;transform:translateY(0);transition:opacity .7s ease,transform .7s ease;pointer-events:auto}\n.banner.fading{opacity:0;transform:translateY(10px);pointer-events:none}\n.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(135px,100%),1fr));width:100%;align-items:stretch}\n.cards>.card{width:100%;min-width:0;max-width:100%;overflow:hidden}\n.card{position:relative;transition:transform .15s,filter .15s}\n.card:hover{transform:translateY(-2px);filter:brightness(1.12)}\n.card .k,.card .v{overflow-wrap:anywhere}\n.tree-toolbar{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;width:66.6667%;max-width:100%;margin-bottom:14px;align-items:center}\n.tree-toolbar>button,.tree-toolbar>input{width:100%;min-width:0}\n.bug-link{display:inline-flex;align-items:center;border:1px solid rgba(248,113,113,.72);border-radius:999px;padding:2px 8px;background:rgba(248,113,113,.14);color:#fecaca;font-size:11px;font-weight:700;white-space:nowrap}\n.bug-link:hover{background:rgba(248,113,113,.25);color:#fff;text-decoration:none}\n.caserow{margin:3px 0;border-radius:6px;border-bottom-color:transparent;transition:filter .15s,transform .15s}\n.caserow:hover{filter:brightness(1.18);transform:translateX(2px)}\ndetails.node{overflow:hidden;transition:filter .15s,border-color .15s}\ndetails.node:hover{filter:brightness(1.08)}\n@media(max-width:720px){.tab{font-size:14px;padding:9px 14px;min-height:38px;flex:1 1 auto}.banner{right:12px;bottom:12px;max-width:calc(100vw - 24px)}.colour-key{width:100%;padding:6px 0 0;border-left:0;border-top:1px solid #27395c}.casetitle{min-width:150px}.tree-toolbar{width:100%;grid-template-columns:repeat(2,minmax(0,1fr))}.tree-toolbar>input{grid-column:1/-1}}";
+  D.CSS += "\n.type-badge{font-weight:700;letter-spacing:.02em}\n.colour-key{display:inline-flex;flex-wrap:wrap;gap:5px;align-items:center;padding-left:8px;border-left:1px solid #27395c}\n.tab{font-size:14px;padding:10px 18px;min-height:40px}\n.banner{position:fixed;right:20px;bottom:20px;z-index:100;max-width:min(680px,calc(100vw - 40px));margin:0;padding:11px 14px;box-shadow:0 14px 36px rgba(0,0,0,.38);opacity:1;transform:translateY(0);transition:opacity .7s ease,transform .7s ease;pointer-events:auto}\n.banner.fading{opacity:0;transform:translateY(10px);pointer-events:none}\n.cards{display:flex;flex-wrap:nowrap;gap:12px;width:100%;align-items:stretch;overflow-x:auto;scrollbar-width:thin}\n.cards>.card{flex:1 1 0;width:auto;min-width:110px;max-width:none;overflow:hidden}\n.card{position:relative;transition:transform .15s,filter .15s}\n.card:hover{transform:translateY(-2px);filter:brightness(1.12)}\n.card .k,.card .v{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\n.tree-toolbar{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;width:66.6667%;max-width:100%;margin-bottom:14px;align-items:center}\n.tree-toolbar>button,.tree-toolbar>input{width:100%;min-width:0}\n.bug-link{display:inline-flex;align-items:center;border:1px solid rgba(248,113,113,.72);border-radius:999px;padding:2px 8px;background:rgba(248,113,113,.14);color:#fecaca;font-size:11px;font-weight:700;white-space:nowrap}\n.bug-link:hover{background:rgba(248,113,113,.25);color:#fff;text-decoration:none}\n.caserow{margin:3px 0;border-radius:6px;border-bottom-color:transparent;transition:filter .15s,transform .15s}\n.caserow:hover{filter:brightness(1.18);transform:translateX(2px)}\ndetails.node{overflow:hidden;transition:filter .15s,border-color .15s}\ndetails.node:hover{filter:brightness(1.08)}\n@media(max-width:720px){.tab{font-size:14px;padding:9px 14px;min-height:38px;flex:1 1 auto}.banner{right:12px;bottom:12px;max-width:calc(100vw - 24px)}.colour-key{width:100%;padding:6px 0 0;border-left:0;border-top:1px solid #27395c}.casetitle{min-width:150px}.tree-toolbar{width:100%;grid-template-columns:repeat(2,minmax(0,1fr))}.tree-toolbar>input{grid-column:1/-1}}";
   D.CSS += "\n.tab{font-size:18px;padding:10px 29px;min-height:42px}\n.metric-badge{display:inline-flex;align-items:center;border:1px solid;border-radius:5px;padding:2px 6px;font-size:10.5px;font-weight:700;white-space:nowrap}\n.metric-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:10px 0 14px}\n.metric-section{min-width:0;padding:10px;border:1px solid #1c2942;border-radius:8px;background:#0f1a2e;overflow-x:auto}\n.metric-section h4{margin:0 0 8px;color:#cfe3ff;font-size:12px}\n.metric-total{font-size:12px;color:#bcd9ff;margin:2px 0 8px;font-weight:700}\n.case-links{display:inline;line-height:1.8}\n@media(max-width:980px){.metric-grid{grid-template-columns:1fr}}\n@media(max-width:720px){.tab{font-size:16px;padding:9px 18px;min-height:40px}}";
   D.CSS += "\n.metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}\n.metric-stack{display:grid;gap:12px;align-content:start;min-width:0}\n.metric-section{overflow:hidden}\n.hbar-list{display:grid;gap:10px}\n.hbar-row{padding:9px 10px;border:1px solid #1c2942;border-radius:8px;background:#111d33}\n.hbar-row.total{border-color:#2d527d;background:#12223b}\n.hbar-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:6px}\n.hbar-label{min-width:0;color:#dbeafe;font-size:12px;font-weight:700;overflow-wrap:anywhere}\n.hbar-value{flex:none;color:#a9bdd8;font-size:11px;font-variant-numeric:tabular-nums;text-align:right}\n.hbar-track{height:12px;border-radius:999px;background:#1c2942;overflow:hidden}\n.hbar-fill{height:100%;border-radius:inherit;transition:width .25s ease}\n.hbar-details{margin-top:5px;color:#8fa3c0;font-size:11px}\n.hbar-details>summary{display:flex;align-items:center;min-height:32px;width:max-content;max-width:100%;cursor:pointer;color:#7dd3fc;font-weight:600;list-style:none}\n.hbar-details>summary::-webkit-details-marker{display:none}\n.hbar-details>summary:before{content:'\\25B8';margin-right:5px;color:#5b7ba6;transition:transform .15s}\n.hbar-details[open]>summary:before{transform:rotate(90deg)}\n.hbar-details>summary:hover{color:#bae6fd}\n.hbar-details>summary:focus-visible{outline:2px solid #38bdf8;outline-offset:2px;border-radius:4px}\n.hbar-links{display:flex;flex-wrap:wrap;gap:6px;padding:4px 0 2px 16px}\n@media(max-width:980px){.metric-grid{grid-template-columns:1fr}}\n@media(max-width:720px){.hbar-head{align-items:flex-start;flex-direction:column;gap:3px}.hbar-value{text-align:left}.hbar-row{padding:9px}.hbar-details>summary{min-height:40px}.hbar-links{padding-left:8px}}";
   D.CSS += "\n.bug-detail-scroll{max-width:100%;overflow-x:auto;margin-top:8px}\n.bug-detail-scroll>table{min-width:640px}";
-  D.CSS += "\n.suite-intro{margin:0 0 12px;color:#9fb3d0;font-size:12px}\n.suite-toolbar{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;width:min(760px,100%);margin-bottom:14px}\n.suite-toolbar>*{width:100%;min-width:0}\ndetails.suite-group,details.suite-rack{border:1px solid #253858;border-radius:9px;background:#0f1a2e;margin:8px 0;overflow:hidden}\ndetails.suite-group[open]{border-color:#35618f;background:#101d33}\ndetails.suite-rack{margin:8px 0;background:#0c1729}\n.suite-summary,.suite-rack-summary{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:11px 13px;cursor:pointer;list-style:none}\n.suite-summary::-webkit-details-marker,.suite-rack-summary::-webkit-details-marker{display:none}\n.suite-summary:before,.suite-rack-summary:before{content:'\\25B8';color:#7dd3fc;transition:transform .15s}\ndetails[open]>.suite-summary:before,details[open]>.suite-rack-summary:before{transform:rotate(90deg)}\n.suite-summary:hover,.suite-rack-summary:hover{background:#152744}\n.suite-name{font-size:15px;font-weight:700;color:#e0f2fe}\n.suite-rack-name{font-size:13px;font-weight:700;color:#cfe3ff}\n.suite-pill{display:inline-flex;padding:2px 8px;border-radius:999px;background:#193657;color:#bae6fd;border:1px solid #2d527d;font-size:11px;font-weight:700}\n.suite-group-body{padding:0 12px 12px 28px}\n.suite-rack-body{padding:0 10px 10px 28px}\n.suite-table-scroll{max-width:100%;overflow:auto;border:1px solid #1c2942;border-radius:7px}\ntable.suite-table{min-width:1320px;background:#0c1729}\n.suite-table th{position:sticky;top:0;background:#132039;z-index:1}\n.suite-table td{vertical-align:top;line-height:1.4}\n.suite-table .suite-id{width:86px;font-family:Consolas,monospace}\n.suite-table .suite-title{min-width:420px;color:#d7e3f4}\n.suite-table .suite-name-cell{min-width:110px}\n.suite-table .suite-owner{min-width:150px}\n.suite-table .suite-comments{min-width:240px;max-width:420px;white-space:normal;overflow-wrap:anywhere}\n.suite-case-row{border-left:3px solid transparent}\n.suite-case-row:hover{background:#152341}\n@media(max-width:720px){.suite-toolbar{grid-template-columns:repeat(2,minmax(0,1fr))}.suite-toolbar>input{grid-column:1/-1}.suite-group-body,.suite-rack-body{padding-left:10px}.suite-summary,.suite-rack-summary{padding:12px 10px}}";
+  D.CSS += "\n.suite-intro{margin:0 0 12px;color:#9fb3d0;font-size:12px}\n.suite-toolbar{display:grid;grid-template-columns:minmax(150px,220px) minmax(240px,1fr);gap:12px;width:min(760px,100%);margin-bottom:14px}\n.suite-toolbar>*{width:100%;min-width:0}\n.feature-groups{display:grid;gap:14px}\n.feature-group{min-width:0;border:1px solid #253858;border-radius:10px;background:#0f1a2e;padding:12px}\n.feature-group-head{display:flex;align-items:center;gap:8px;margin-bottom:10px}\n.feature-group-name{margin:0;color:#e0f2fe;font-size:15px}\n.suite-pill{display:inline-flex;padding:2px 8px;border-radius:999px;background:#193657;color:#bae6fd;border:1px solid #2d527d;font-size:11px;font-weight:700}\n.feature-case-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(360px,100%),1fr));gap:10px}\n.feature-case-card{min-width:0;border:1px solid #1c2942;border-left:4px solid #94a3b8;border-radius:8px;background:#0c1729;padding:10px;transition:transform .15s,filter .15s}\n.feature-case-card:hover{transform:translateY(-2px);filter:brightness(1.1)}\n.feature-case-head{display:flex;align-items:center;gap:8px;margin-bottom:7px}\n.feature-case-title{min-height:38px;color:#d7e3f4;font-size:13px;font-weight:600;line-height:1.45}\n.feature-case-meta{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0}\n.feature-meta{display:inline-flex;padding:2px 6px;border-radius:5px;background:#16243d;border:1px solid #27395c;color:#bcd9ff;font-size:10.5px;white-space:nowrap}\n.feature-fields{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 8px;margin:8px 0 0;font-size:11px}\n.feature-fields dt{color:#7d93b3}.feature-fields dd{margin:0;color:#cbd8ea;overflow-wrap:anywhere}\n.feature-bugs{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}\n@media(max-width:720px){.suite-toolbar{grid-template-columns:1fr}.feature-case-grid{grid-template-columns:1fr}}";
   D.CSS += "\n.dashboard-main{display:grid;grid-template-columns:64px minmax(0,1fr);align-items:start;min-width:0}\n#panels{min-width:0}\n.tabs{display:flex;flex-direction:column;flex-wrap:nowrap;align-items:center;gap:4px;width:64px;min-width:64px;padding:10px 6px 60px 8px}\n.tab{display:flex;align-items:center;justify-content:center;flex:0 0 auto;width:50px;min-width:50px;max-width:50px;min-height:72px;height:auto;padding:8px 5px;border:1px solid #1e2b45;border-radius:6px;background:#111d33;color:#9fb3d0;writing-mode:vertical-rl;text-orientation:mixed;white-space:nowrap;font-size:11px;line-height:1.1}\n.tab.active{background:#16243d;color:#fff;font-weight:600;box-shadow:inset 3px 0 0 #38bdf8}\n.panel{min-width:0;padding:16px 20px 60px 14px}\n@media(max-width:720px){.dashboard-main{grid-template-columns:54px minmax(0,1fr)}.tabs{width:54px;min-width:54px;padding:8px 4px 40px}.tab{width:44px;min-width:44px;max-width:44px;min-height:66px;padding:7px 4px;font-size:10px}.panel{padding:12px 10px 50px 8px}}";
-  D.CSS += "\n:root{--dvdash-controls-height:52px}\n.tabs{position:sticky;top:calc(var(--dvdash-controls-height) + 8px);align-self:start;z-index:12;max-height:calc(100vh - var(--dvdash-controls-height) - 16px);overflow-y:auto;scrollbar-width:thin}\n.panel-sticky,.suite-sticky{position:sticky;top:var(--dvdash-controls-height);z-index:11;background:#0b1220;padding-top:8px;padding-bottom:12px;box-shadow:0 12px 18px rgba(3,8,18,.42)}\n.panel-sticky>.grid,.suite-sticky>.suite-toolbar{margin-bottom:0}\n.suite-toolbar{grid-template-columns:repeat(4,minmax(0,1fr));width:min(980px,100%)}\n.suite-state{white-space:nowrap}\n.suite-bugs{min-width:160px}\n.suite-bugs .bug-link{margin:1px 4px 1px 0}\n@media(max-width:980px), (max-height:700px){.panel-sticky,.suite-sticky{position:static;box-shadow:none;padding-top:0}.suite-toolbar{grid-template-columns:repeat(2,minmax(0,1fr))}}\n@media(max-width:720px){.tabs{top:calc(var(--dvdash-controls-height) + 6px);max-height:calc(100vh - var(--dvdash-controls-height) - 12px)}.suite-toolbar>input{grid-column:1/-1}}";
+  D.CSS += "\n:root{--dvdash-controls-height:52px}\n.tabs{position:sticky;top:calc(var(--dvdash-controls-height) + 8px);align-self:start;z-index:12;max-height:calc(100vh - var(--dvdash-controls-height) - 16px);overflow-y:auto;scrollbar-width:thin}\n.panel-sticky,.suite-sticky{position:sticky;top:var(--dvdash-controls-height);z-index:11;background:#0b1220;padding-top:8px;padding-bottom:12px;box-shadow:0 12px 18px rgba(3,8,18,.42)}\n.panel-sticky>.cards,.suite-sticky>.cards{margin-bottom:0}\n@media(max-width:980px), (max-height:700px){.panel-sticky,.suite-sticky{position:static;box-shadow:none;padding-top:0}}\n@media(max-width:720px){.tabs{top:calc(var(--dvdash-controls-height) + 6px);max-height:calc(100vh - var(--dvdash-controls-height) - 12px)}}";
   D.card = function (k, v, tone) {
     var c = D.el('div', 'card');
     if (tone) {
@@ -808,20 +723,26 @@
       if (text && vis > 0) ds[j].open = true;
     }
   };
-  D.suiteInventory = function () {
-    var groups = {}, order = D.SUITE_DEFINITIONS.map(function (definition) { return definition[0]; });
-    order.concat(['Unmapped']).forEach(function (name) { groups[name] = { name: name, racks: {}, cases: [], titles: {} }; });
-    D.S.racks.forEach(function (rack) {
-      D.collect(rack, 'Test Case').forEach(function (testCase) {
-        var suite = D.suiteFor(testCase);
-        var group = groups[suite] || groups.Unmapped;
-        var entry = { testCase: testCase, rack: rack };
-        group.cases.push(entry);
-        (group.racks[rack.label] = group.racks[rack.label] || []).push(entry);
-        group.titles[D.normalizeSuiteTitle(testCase.title)] = 1;
-      });
-    });
-    return order.concat(['Unmapped']).map(function (name) { return groups[name]; }).filter(function (group) { return group.cases.length; });
+  D.featureInventory = function () {
+    var rack = D.S.racks[0], groups = [], byKey = {};
+    if (!rack) return groups;
+    function groupFor(feature) {
+      var key = feature ? String(feature.id) : 'unmapped';
+      if (!byKey[key]) {
+        var name = feature ? feature.title.replace(/^(\[[^\]]*\]\s*)+/, '').trim() : 'Unmapped';
+        byKey[key] = { id: key, name: name || ('Feature #' + feature.id), feature: feature, cases: [] };
+        groups.push(byKey[key]);
+      }
+      return byKey[key];
+    }
+    function visit(node, currentFeature) {
+      var feature = currentFeature;
+      if (node !== rack && node.type === 'Feature') feature = node;
+      if (node.type === 'Test Case') groupFor(feature).cases.push({ testCase: node, rack: rack, feature: feature });
+      (node.children || []).forEach(function (child) { visit(child, feature); });
+    }
+    visit(rack, null);
+    return groups;
   };
   D.xmlEsc = function (value) {
     return String(value == null ? '' : value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
@@ -834,11 +755,11 @@
   };
   D.suiteExportRows = function () {
     var rows = [];
-    D.suiteInventory().forEach(function (group) {
+    D.featureInventory().forEach(function (group) {
       group.cases.forEach(function (entry) {
         var testCase = entry.testCase, fields = testCase.suiteFields || {}, metrics = testCase.metrics || {};
         rows.push({
-          rack: entry.rack.label, id: testCase.id, title: testCase.title, suite: group.name, state: testCase.state,
+          rack: entry.rack.label, id: testCase.id, title: testCase.title, feature: group.name, state: testCase.state,
           changed: D.fmt(testCase.changed),
           priority: D.hasMetric(metrics.priority) ? ('P' + (D.priorityLevel(metrics.priority) || metrics.priority)) : '-',
           sampleSize: D.displayFieldValue(metrics.sampleSize), cycles: D.displayFieldValue(metrics.numberOfCycles), duration: D.displayFieldValue(metrics.testDuration),
@@ -852,20 +773,20 @@
   };
   D.suiteExcelXml = function () {
     var rows = D.suiteExportRows();
-    var headers = ['Rack', 'Case ID', 'Title', 'Suite', 'State', 'Changed Date', 'Priority', 'Sample Size', 'Number of Cycles', 'Test Duration', 'Script type', 'CRC SDK', 'IGS Owner', 'Linked Bugs', 'Comments', 'Azure DevOps URL'];
+    var headers = ['Rack', 'Case ID', 'Title', 'Test Feature', 'State', 'Changed Date', 'Priority', 'Sample Size', 'Number of Cycles', 'Test Duration', 'Script type', 'CRC SDK', 'IGS Owner', 'Linked Bugs', 'Comments', 'Azure DevOps URL'];
     var widths = [70, 72, 360, 90, 90, 110, 60, 80, 90, 95, 80, 80, 110, 240, 260, 300];
     var xml = '<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?>'
       + '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">'
       + '<Styles><Style ss:ID="Default" ss:Name="Normal"><Alignment ss:Vertical="Top"/><Font ss:FontName="Segoe UI" ss:Size="10"/></Style>'
       + '<Style ss:ID="Header"><Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/><Font ss:FontName="Segoe UI" ss:Size="10" ss:Bold="1" ss:Color="#FFFFFF"/><Interior ss:Color="#132039" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#38BDF8"/></Borders></Style>'
       + '<Style ss:ID="Text"><Alignment ss:Vertical="Top" ss:WrapText="1"/></Style><Style ss:ID="Link"><Font ss:Color="#0563C1" ss:Underline="Single"/><Alignment ss:Vertical="Top" ss:WrapText="1"/></Style></Styles>'
-      + '<Worksheet ss:Name="Test Suites"><Table ss:ExpandedColumnCount="16" ss:ExpandedRowCount="' + (rows.length + 1) + '" x:FullColumns="1" x:FullRows="1">';
+      + '<Worksheet ss:Name="Rack 1 Features"><Table ss:ExpandedColumnCount="16" ss:ExpandedRowCount="' + (rows.length + 1) + '" x:FullColumns="1" x:FullRows="1">';
     widths.forEach(function (width) { xml += '<Column ss:AutoFitWidth="0" ss:Width="' + width + '"/>'; });
     xml += '<Row ss:Height="30">'; headers.forEach(function (header) { xml += D.excelCell(header, 'Header'); }); xml += '</Row>';
     rows.forEach(function (row) {
       xml += '<Row>'
         + D.excelCell(row.rack, 'Text') + D.excelCell(row.id, 'Link', false, row.url) + D.excelCell(row.title, 'Text')
-        + D.excelCell(row.suite, 'Text') + D.excelCell(row.state, 'Text') + D.excelCell(row.changed, 'Text') + D.excelCell(row.priority, 'Text')
+        + D.excelCell(row.feature, 'Text') + D.excelCell(row.state, 'Text') + D.excelCell(row.changed, 'Text') + D.excelCell(row.priority, 'Text')
         + D.excelCell(row.sampleSize, 'Text', true) + D.excelCell(row.cycles, 'Text', true) + D.excelCell(row.duration, 'Text')
         + D.excelCell(row.scriptType, 'Text') + D.excelCell(row.crcSdk, 'Text') + D.excelCell(row.igsOwner, 'Text')
         + D.excelCell(row.bugs, 'Text') + D.excelCell(row.comments, 'Text') + D.excelCell(row.url, 'Link', false, row.url) + '</Row>';
@@ -879,116 +800,76 @@
     function pad(value) { return value < 10 ? '0' + value : String(value); }
     var stamp = now.getFullYear() + pad(now.getMonth() + 1) + pad(now.getDate()) + '-' + pad(now.getHours()) + pad(now.getMinutes());
     var blob = new Blob([result.xml], { type: 'application/vnd.ms-excel;charset=utf-8' });
-    var link = D.el('a'); link.href = URL.createObjectURL(blob); link.download = 'C4143-Test-Suites-' + stamp + '.xls';
+    var link = D.el('a'); link.href = URL.createObjectURL(blob); link.download = 'C4143-Rack1-Test-Features-' + stamp + '.xls';
     document.body.appendChild(link); link.click(); link.remove();
     setTimeout(function () { URL.revokeObjectURL(link.href); }, 5000);
-    D.setStatus('Downloaded Excel workbook with ' + result.count + ' synchronized Test Suite case rows.', 'info');
+    D.setStatus('Downloaded Excel workbook with ' + result.count + ' Rack 1 Test Feature case rows.', 'info');
   };
-  D.suiteCaseTable = function (entries, suiteName) {
-    var scroll = D.el('div', 'suite-table-scroll');
-    var table = D.el('table', 'suite-table'), thead = D.el('thead'), header = D.el('tr');
-    ['Rack', 'ID', 'Title', 'Suite', 'State', 'Changed', 'Priority', 'Sample Size', 'Cycles', 'Duration', 'Script type', 'CRC SDK', 'IGS Owner', 'Linked Bugs', 'Comments'].forEach(function (label) { header.appendChild(D.el('th', null, label)); });
-    thead.appendChild(header); table.appendChild(thead);
-    var tbody = D.el('tbody');
-    entries.forEach(function (entry) {
-      var testCase = entry.testCase, fields = testCase.suiteFields || {}, metrics = testCase.metrics || {};
-      var row = D.el('tr', 'suite-case-row');
-      row.style.borderLeftColor = D.colorFor(testCase.state);
-      row.title = 'Rack: ' + entry.rack.label + ' · State: ' + testCase.state;
-      row.appendChild(D.el('td', null, entry.rack.label));
-      var idCell = D.el('td', 'suite-id'), idLink = D.el('a', 'caseid', String(testCase.id));
-      idLink.href = D.wiUrl(testCase.id); idLink.target = '_blank'; idLink.rel = 'noopener'; idCell.appendChild(idLink); row.appendChild(idCell);
-      row.appendChild(D.el('td', 'suite-title', testCase.title));
-      row.appendChild(D.el('td', 'suite-name-cell', suiteName));
-      var stateCell = D.el('td', 'suite-state'); stateCell.appendChild(D.chip(testCase.state)); row.appendChild(stateCell);
-      row.appendChild(D.el('td', null, D.fmt(testCase.changed)));
-      var priority = D.priorityLevel(metrics.priority);
-      row.appendChild(D.el('td', null, D.hasMetric(metrics.priority) ? (priority ? 'P' + priority : D.displayFieldValue(metrics.priority)) : '-'));
-      row.appendChild(D.el('td', null, D.displayFieldValue(metrics.sampleSize)));
-      row.appendChild(D.el('td', null, D.displayFieldValue(metrics.numberOfCycles)));
-      row.appendChild(D.el('td', null, D.displayFieldValue(metrics.testDuration)));
-      row.appendChild(D.el('td', null, D.displayFieldValue(fields.scriptType)));
-      row.appendChild(D.el('td', null, D.displayFieldValue(fields.crcSdk)));
-      row.appendChild(D.el('td', 'suite-owner', D.displayFieldValue(fields.igsOwner)));
-      var bugsCell = D.el('td', 'suite-bugs');
-      if ((testCase.bugs || []).length) (testCase.bugs || []).forEach(function (bug) { bugsCell.appendChild(D.bugLink(bug)); });
-      else bugsCell.textContent = '-';
-      row.appendChild(bugsCell);
-      var comments = D.displayFieldValue(fields.comments), commentsCell = D.el('td', 'suite-comments', comments);
-      commentsCell.title = comments === '-' ? '' : comments; row.appendChild(commentsCell);
-      row._suiteSearch = [testCase.id, testCase.title, suiteName, entry.rack.label, testCase.state, metrics.priority,
-        metrics.sampleSize, metrics.numberOfCycles, metrics.testDuration, D.fmt(testCase.changed),
-        (testCase.bugs || []).map(function (bug) { return 'BUG #' + bug.id + ' ' + bug.title + ' ' + bug.state; }).join(' '),
-        D.displayFieldValue(fields.scriptType), D.displayFieldValue(fields.crcSdk), D.displayFieldValue(fields.igsOwner), comments].join(' ').toLowerCase();
-      tbody.appendChild(row);
+  D.featureCaseCard = function (entry, featureName) {
+    var testCase = entry.testCase, fields = testCase.suiteFields || {}, metrics = testCase.metrics || {};
+    var card = D.el('article', 'feature-case-card'); card.style.borderLeftColor = D.colorFor(testCase.state);
+    var head = D.el('div', 'feature-case-head'), idLink = D.el('a', 'caseid', '#' + testCase.id);
+    idLink.href = D.wiUrl(testCase.id); idLink.target = '_blank'; idLink.rel = 'noopener'; head.appendChild(idLink);
+    head.appendChild(D.el('span', 'spacer')); head.appendChild(D.chip(testCase.state)); card.appendChild(head);
+    card.appendChild(D.el('div', 'feature-case-title', testCase.title));
+    var meta = D.el('div', 'feature-case-meta'), priority = D.priorityLevel(metrics.priority);
+    [
+      D.hasMetric(metrics.priority) ? (priority ? 'P' + priority : D.displayFieldValue(metrics.priority)) : 'Priority -',
+      'Sample ' + D.displayFieldValue(metrics.sampleSize), 'Cycles ' + D.displayFieldValue(metrics.numberOfCycles),
+      'Duration ' + D.displayFieldValue(metrics.testDuration), 'Changed ' + D.fmt(testCase.changed)
+    ].forEach(function (value) { meta.appendChild(D.el('span', 'feature-meta', value)); });
+    card.appendChild(meta);
+    var detail = D.el('dl', 'feature-fields');
+    [['Script type', fields.scriptType], ['CRC SDK', fields.crcSdk], ['IGS Owner', fields.igsOwner], ['Comments', fields.comments]].forEach(function (row) {
+      detail.appendChild(D.el('dt', null, row[0])); detail.appendChild(D.el('dd', null, D.displayFieldValue(row[1])));
     });
-    table.appendChild(tbody); scroll.appendChild(table); return scroll;
+    card.appendChild(detail);
+    var bugs = D.el('div', 'feature-bugs');
+    if ((testCase.bugs || []).length) (testCase.bugs || []).forEach(function (bug) { bugs.appendChild(D.bugLink(bug)); });
+    else bugs.appendChild(D.el('span', 'small', 'No linked Bugs'));
+    card.appendChild(bugs);
+    card._featureSearch = [testCase.id, testCase.title, featureName, testCase.state, metrics.priority, metrics.sampleSize,
+      metrics.numberOfCycles, metrics.testDuration, D.fmt(testCase.changed), D.displayFieldValue(fields.scriptType),
+      D.displayFieldValue(fields.crcSdk), D.displayFieldValue(fields.igsOwner), D.displayFieldValue(fields.comments),
+      (testCase.bugs || []).map(function (bug) { return 'BUG #' + bug.id + ' ' + bug.title + ' ' + bug.state; }).join(' ')].join(' ').toLowerCase();
+    return card;
   };
   D.suitePanel = function () {
-    var wrap = D.el('div'), groups = D.suiteInventory(), allEntries = [];
+    var wrap = D.el('div'), groups = D.featureInventory(), allEntries = [];
     groups.forEach(function (group) { allEntries = allEntries.concat(group.cases); });
-    var uniqueTitles = {}, unmapped = 0;
-    allEntries.forEach(function (entry) {
-      uniqueTitles[D.normalizeSuiteTitle(entry.testCase.title)] = 1;
-      if (D.suiteFor(entry.testCase) === 'Unmapped') unmapped++;
-    });
+    var unmapped = (groups.filter(function (group) { return group.name === 'Unmapped'; })[0] || { cases: [] }).cases.length;
     var sticky = D.el('div', 'suite-sticky'), cards = D.el('div', 'cards');
     [
-      D.card('TEST SUITES', groups.filter(function (group) { return group.name !== 'Unmapped'; }).length, '#38bdf8'),
-      D.card('UNIQUE TEST ITEMS', Object.keys(uniqueTitles).length, '#c084fc'),
-      D.card('RACK CASES', allEntries.length, '#34d399'),
+      D.card('RACK 1 TEST FEATURES', groups.filter(function (group) { return group.name !== 'Unmapped'; }).length, '#38bdf8'),
+      D.card('RACK 1 CASES', allEntries.length, '#c084fc'),
+      D.card('MAPPED CASES', allEntries.length - unmapped, '#34d399'),
       D.card('UNMAPPED CASES', unmapped, unmapped ? '#fb7185' : '#2dd4bf')
     ].forEach(function (card) { cards.appendChild(card); });
-    sticky.appendChild(cards);
-    sticky.appendChild(D.el('p', 'suite-intro', 'Suite cases use the same live State, Bug, Priority, Sample Size, Number of Cycles, Test Duration and Changed Date data as the Rack tabs. Expand Suite, then Rack, to review each case.'));
+    sticky.appendChild(cards); wrap.appendChild(sticky);
+    wrap.appendChild(D.el('p', 'suite-intro', 'This flat view is rebuilt directly from the current Rack 1 Feature hierarchy after every query. Every Rack 1 Test Case is grouped under its nearest parent Test Feature and uses the same live State, Bug and metric data as the Rack 1 tab.'));
     var toolbar = D.el('div', 'suite-toolbar');
-    var expand = D.el('button', null, 'Expand all'), collapse = D.el('button', null, 'Collapse all');
     var download = D.el('button', 'primary', 'Download Excel (.xls)'), search = D.el('input');
-    download.id = 'suiteExcelBtn'; download.title = 'Download all synchronized Test Suite case fields for Excel';
-    search.placeholder = 'Search suite / rack / case / field …';
-    toolbar.appendChild(expand); toolbar.appendChild(collapse); toolbar.appendChild(download); toolbar.appendChild(search); sticky.appendChild(toolbar); wrap.appendChild(sticky);
-    var groupsHost = D.el('div', 'suite-groups'); wrap.appendChild(groupsHost);
-    groups.forEach(function (group, groupIndex) {
-      var suiteDetails = D.el('details', 'suite-group');
-      if (groupIndex === 0) suiteDetails.open = true;
-      var suiteSummary = D.el('summary', 'suite-summary');
-      suiteSummary.appendChild(D.el('span', 'suite-name', group.name));
-      suiteSummary.appendChild(D.el('span', 'suite-pill', Object.keys(group.titles).length + ' test items'));
-      suiteSummary.appendChild(D.el('span', 'suite-pill', group.cases.length + ' rack cases'));
-      suiteDetails.appendChild(suiteSummary);
-      var suiteBody = D.el('div', 'suite-group-body');
-      D.S.racks.forEach(function (rack, rackIndex) {
-        var entries = group.racks[rack.label] || [];
-        if (!entries.length) return;
-        var rackDetails = D.el('details', 'suite-rack');
-        if (groupIndex === 0 && rackIndex === 0) rackDetails.open = true;
-        var rackSummary = D.el('summary', 'suite-rack-summary');
-        rackSummary.appendChild(D.el('span', 'suite-rack-name', rack.label));
-        rackSummary.appendChild(D.el('span', 'suite-pill', entries.length + ' cases'));
-        rackDetails.appendChild(rackSummary);
-        var rackBody = D.el('div', 'suite-rack-body'); rackBody.appendChild(D.suiteCaseTable(entries, group.name));
-        rackDetails.appendChild(rackBody); suiteBody.appendChild(rackDetails);
-      });
-      suiteDetails.appendChild(suiteBody); groupsHost.appendChild(suiteDetails);
+    download.id = 'suiteExcelBtn'; download.title = 'Download all Rack 1 Test Feature case fields for Excel';
+    search.placeholder = 'Search feature / case / state / field …';
+    toolbar.appendChild(download); toolbar.appendChild(search); wrap.appendChild(toolbar);
+    var groupsHost = D.el('div', 'feature-groups'); wrap.appendChild(groupsHost);
+    groups.forEach(function (group) {
+      var section = D.el('section', 'feature-group'), head = D.el('div', 'feature-group-head');
+      head.appendChild(D.el('h3', 'feature-group-name', group.name)); head.appendChild(D.el('span', 'suite-pill', group.cases.length + ' cases'));
+      section.appendChild(head);
+      var grid = D.el('div', 'feature-case-grid');
+      group.cases.forEach(function (entry) { grid.appendChild(D.featureCaseCard(entry, group.name)); });
+      section.appendChild(grid); groupsHost.appendChild(section);
     });
-    expand.addEventListener('click', function () { wrap.querySelectorAll('details.suite-group,details.suite-rack').forEach(function (details) { details.open = true; }); });
-    collapse.addEventListener('click', function () { wrap.querySelectorAll('details.suite-group,details.suite-rack').forEach(function (details) { details.open = false; }); });
     download.addEventListener('click', function () { D.exportSuiteExcel(); });
     search.addEventListener('input', function () { D.applySuiteFilter(wrap, search.value); });
     return wrap;
   };
   D.applySuiteFilter = function (panel, text) {
     text = String(text || '').trim().toLowerCase();
-    panel.querySelectorAll('.suite-case-row').forEach(function (row) { row.classList.toggle('hide', !!text && row._suiteSearch.indexOf(text) < 0); });
-    panel.querySelectorAll('details.suite-rack').forEach(function (rack) {
-      var visible = rack.querySelectorAll('.suite-case-row:not(.hide)').length;
-      rack.classList.toggle('hide', !!text && !visible);
-      if (text && visible) rack.open = true;
-    });
-    panel.querySelectorAll('details.suite-group').forEach(function (suite) {
-      var visible = suite.querySelectorAll('.suite-case-row:not(.hide)').length;
-      suite.classList.toggle('hide', !!text && !visible);
-      if (text && visible) suite.open = true;
+    panel.querySelectorAll('.feature-case-card').forEach(function (card) { card.classList.toggle('hide', !!text && card._featureSearch.indexOf(text) < 0); });
+    panel.querySelectorAll('.feature-group').forEach(function (group) {
+      group.classList.toggle('hide', !!text && !group.querySelector('.feature-case-card:not(.hide)'));
     });
   };
   D.rackTable = function () {
@@ -1113,7 +994,7 @@
     tabsBar.innerHTML = ''; host.innerHTML = ''; D.S.panels = [];
     var defs = [{ kind: 'ov', label: 'Overview (' + D.S.racks.length + ' Racks)' }]
       .concat(D.S.racks.map(function (r) { return { kind: 'rack', label: r.label, rack: r }; }))
-      .concat([{ kind: 'suite', label: 'Test Suites' }]);
+      .concat([{ kind: 'suite', label: 'Test Features' }]);
     defs.forEach(function (def, idx) {
       var tab = D.el('button', 'tab' + (idx === D.S.active ? ' active' : ''), def.label);
       tab.setAttribute('role', 'tab'); tab.setAttribute('aria-selected', idx === D.S.active ? 'true' : 'false');
@@ -1138,14 +1019,14 @@
         refs.cProgress.title = 'Test Cases whose current Azure DevOps State is In Progress.';
         refs.cBugs.title = 'Unique linked Bugs / Test Cases affected by at least one linked Bug.';
         [refs.cRacks, refs.cFeat, refs.cReq, refs.cCase, refs.cFiltered, refs.cPass, refs.cFail, refs.cProgress, refs.cBugs].forEach(function (c) { cards.appendChild(c); });
-        var stickyTop = D.el('div', 'panel-sticky'); stickyTop.appendChild(cards);
+        var stickyTop = D.el('div', 'panel-sticky'); stickyTop.appendChild(cards); panel.appendChild(stickyTop);
         var grid = D.el('div', 'grid');
         var b1 = D.box('Test Case state distribution — all Racks');
         refs.chartHost = D.el('div', 'chartwrap'); b1.appendChild(refs.chartHost);
         refs.legendHost = D.el('div'); b1.appendChild(refs.legendHost);
         var b2 = D.box('Rack comparison (stacked bar)');
         refs.cmpHost = D.el('div', 'chartwrap'); b2.appendChild(refs.cmpHost);
-        grid.appendChild(b1); grid.appendChild(b2); stickyTop.appendChild(grid); panel.appendChild(stickyTop);
+        grid.appendChild(b1); grid.appendChild(b2); panel.appendChild(grid);
         var b3 = D.box('Rack × State summary table');
         refs.tableBox = D.el('div'); b3.appendChild(refs.tableBox); panel.appendChild(b3);
         var bPriority = D.box('Test Case completion by Priority — Closed = completed');
@@ -1163,14 +1044,14 @@
         refs.cBugs = D.card('LINKED BUGS', 0, '#f87171');
         refs.cBugs.title = 'Unique Bug work items linked from Test Cases in this Rack.';
         [refs.cFeat, refs.cReq, refs.cCase, refs.cFiltered, refs.cBugs].forEach(function (c) { cards.appendChild(c); });
-        var rackSticky = D.el('div', 'panel-sticky'); rackSticky.appendChild(cards);
+        var rackSticky = D.el('div', 'panel-sticky'); rackSticky.appendChild(cards); panel.appendChild(rackSticky);
         var g = D.el('div', 'grid');
         var rb1 = D.box(def.rack.label + ' State distribution');
         refs.chartHost = D.el('div', 'chartwrap'); rb1.appendChild(refs.chartHost);
         refs.legendHost = D.el('div'); rb1.appendChild(refs.legendHost);
         var rb2 = D.box('State summary table');
         refs.tableBox = D.el('div'); rb2.appendChild(refs.tableBox);
-        g.appendChild(rb1); g.appendChild(rb2); rackSticky.appendChild(g); panel.appendChild(rackSticky);
+        g.appendChild(rb1); g.appendChild(rb2); panel.appendChild(g);
         var rbPriority = D.box('Test Case completion by Priority — Closed = completed');
         refs.priorityBox = D.el('div'); rbPriority.appendChild(refs.priorityBox); panel.appendChild(rbPriority);
         var rbMetrics = D.box('Sample Size, Number_of_cycles & Test Duration — largest / longest first');
