@@ -4,12 +4,12 @@
 | --- | --- |
 | 文件版本 | 2.0 |
 | 初版日期 | 2026-07-28 |
-| 最後更新 | 2026-08-04 |
-| 最新腳本 | `C4143-DVScale-Dashboard.user.js`（v1.7.3） |
-| 最新腳本大小 | 92181 bytes（約 90 KB） |
+| 最後更新 | 2026-08-14 |
+| 最新腳本 | `C4143-DVScale-Dashboard.user.js`（v1.8.0） |
+| 最新腳本大小 | 101432 bytes（約 99 KB） |
 | 執行環境 | Chrome + Tampermonkey，需已登入 Azure DevOps（azurecsi） |
 
-> 第 1～12 節保留 v1.2 建置時的原始設計與調查紀錄；第 13 節為 v1.3～v1.6.2 的後續開發補充，第 14 節為 Test Suites 分頁，第 15 節為 v1.7.1 自動更新入口，第 16 節為 v1.7.2 左側直式分頁，第 17 節為 v1.7.3 提示淡出修正。
+> 第 1～12 節保留 v1.2 建置時的原始設計與調查紀錄；第 13 節為 v1.3～v1.6.2 的後續開發補充，第 14 節為 Test Suites 分頁，第 15 節為 v1.7.1 自動更新入口，第 16 節為 v1.7.2 左側直式分頁，第 17 節為 v1.7.3 提示淡出修正，第 18 節為 v1.8.0 sticky 與 Excel 匯出。
 
 ---
 
@@ -46,7 +46,7 @@
 
 | 檔案 / Key | 說明 |
 | --- | --- |
-| `C4143-DVScale-Dashboard.user.js` | 最新主交付物與固定安裝入口，Tampermonkey userscript v1.7.3 |
+| `C4143-DVScale-Dashboard.user.js` | 最新主交付物與固定安裝入口，Tampermonkey userscript v1.8.0 |
 | `C4143-DVScale-Dashboard.user_v1.6.1-bug-priority-severity.js` | 上一個穩定版本，保留供回退與比對 |
 | `C4143-DVScale-Dashboard-snapshot.html` | 由頁面上 **Export offline snapshot .html** 按鈕產生的離線單檔（含資料 + 程式碼） |
 | `HANDOFF.md` | 本文件 |
@@ -294,6 +294,7 @@ document-idle → hash 含 dvdash？ → D.boot()
 | v1.7.1 | userscript 改用固定檔名，加入 GitHub `@updateURL`／`@downloadURL`，支援 Tampermonkey 定時自動更新 |
 | v1.7.2 | Overview、Rack 1～5、Test Suites 改為左側直式分頁；縮小導覽寬度與字體並加入窄螢幕調整 |
 | v1.7.3 | re-query 的資訊與黃色警告提示改為 4.5 秒後淡出、5.2 秒後隱藏；紅色載入錯誤維持顯示 |
+| v1.8.0 | 左側分頁與摘要／圖表區支援 sticky；Test Suites 同步 Case 欄位並新增 Excel `.xls` 匯出 |
 
 ---
 
@@ -470,7 +471,7 @@ v1.6.2 完成後執行以下檢查：
 
 ### 14.1 交付檔案
 
-- 最新 userscript：`C4143-DVScale-Dashboard.user.js`（目前 `@version` 1.7.3）
+- 最新 userscript：`C4143-DVScale-Dashboard.user.js`（目前 `@version` 1.8.0）
 - 基準來源：v1.6.2，原有 Overview、Rack 1～5、Bug、Priority、Sample Size、Number_of_cycles 與 Test Duration 功能均保留。
 - 新增第 7 個分頁：`Test Suites`。
 
@@ -584,3 +585,28 @@ Tampermonkey 會按設定的更新間隔讀取固定 URL，比較 `@version`，�
 - 原因：`D.setStatus()` 只有在 `kind === 'info'` 時啟動淡出計時器；查詢成功但自訂欄位不完整時會使用 `warn`，因此黃色提示永久停留。
 - 修正：除 `err` 外，`info` 與 `warn` 都在 4.5 秒加入 `fading`，並在 5.2 秒加入 `hide`。
 - 保留：真正的載入或驗證錯誤仍使用 `err` 並持續顯示，避免重要錯誤在讀完前消失。
+
+---
+
+## 18. 2026-08-14 sticky 區域、Test Suites 同步與 Excel 匯出（v1.8.0）
+
+### 18.1 捲動時固定區域
+
+- `.controls` 保持頁面頂端；使用 `ResizeObserver` 動態計算控制列高度並寫入 `--dvdash-controls-height`。
+- 左側 `.tabs` 依控制列高度 sticky，內容過高時可在分頁列內獨立捲動。
+- Overview 與 Rack 分頁將摘要卡及 State distribution／比較圖包在 `.panel-sticky`；頁面下方表格、Priority、Sample／Cycles／Duration 與 Bug 區繼續正常捲動。
+- Test Suites 將摘要卡、說明與工具列包在 `.suite-sticky`，瀏覽大量 Case 時仍可搜尋、展開／收合或下載 Excel。
+- 980px 以下或高度 700px 以下停用大型內容 sticky，避免遮住窄螢幕；左側分頁仍保持 sticky。
+
+### 18.2 Test Suites Case 同步
+
+- 表格直接使用與 Rack 分頁相同的 `testCase` 物件，不建立第二份狀態資料。
+- 顯示 Rack、ID、Title、Suite、State、Changed、Priority、Sample Size、Cycles、Duration、Script type、CRC SDK、IGS Owner、Linked Bugs、Comments。
+- State 使用相同色票，Bug 使用相同 Azure DevOps hyperlink；Search 也涵蓋新同步欄位。
+
+### 18.3 Excel 匯出
+
+- **Download Excel (.xls)** 會輸出 Excel 2003 XML，不依賴外部 CDN 或第三方 runtime。
+- 工作表共 16 欄：畫面同步欄位加上 Azure DevOps URL；Case ID 與 URL 都可直接開啟 Work Item。
+- 標題列凍結並啟用 AutoFilter，純數字 Sample Size／Number of Cycles 以數值儲存，識別碼維持文字。
+- 270 筆測試資料驗證輸出為 271 列（含 Header）、16 欄，XML 可解析，AutoFilter 範圍為 `R1C1:R271C16`。
