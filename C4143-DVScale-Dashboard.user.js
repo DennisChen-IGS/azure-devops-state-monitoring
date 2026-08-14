@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         C4143 DV-Scale Rack Test Status Dashboard
 // @namespace    local.ado.dvscale.dashboard
-// @version      1.7.3
-// @description  Adds compact vertical navigation, auto-hiding query notices, Test Suites hierarchy, and GitHub-hosted updates.
+// @version      1.8.0
+// @description  Adds sticky dashboard summaries, synchronized Test Suites fields, Excel export, and GitHub-hosted updates.
 // @homepageURL  https://github.com/alan512627/azure-devops-state-monitoring
 // @supportURL   https://github.com/alan512627/azure-devops-state-monitoring/issues
 // @updateURL    https://raw.githubusercontent.com/alan512627/azure-devops-state-monitoring/main/C4143-DVScale-Dashboard.user.js
@@ -682,6 +682,7 @@
   D.CSS += "\n.bug-detail-scroll{max-width:100%;overflow-x:auto;margin-top:8px}\n.bug-detail-scroll>table{min-width:640px}";
   D.CSS += "\n.suite-intro{margin:0 0 12px;color:#9fb3d0;font-size:12px}\n.suite-toolbar{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;width:min(760px,100%);margin-bottom:14px}\n.suite-toolbar>*{width:100%;min-width:0}\ndetails.suite-group,details.suite-rack{border:1px solid #253858;border-radius:9px;background:#0f1a2e;margin:8px 0;overflow:hidden}\ndetails.suite-group[open]{border-color:#35618f;background:#101d33}\ndetails.suite-rack{margin:8px 0;background:#0c1729}\n.suite-summary,.suite-rack-summary{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:11px 13px;cursor:pointer;list-style:none}\n.suite-summary::-webkit-details-marker,.suite-rack-summary::-webkit-details-marker{display:none}\n.suite-summary:before,.suite-rack-summary:before{content:'\\25B8';color:#7dd3fc;transition:transform .15s}\ndetails[open]>.suite-summary:before,details[open]>.suite-rack-summary:before{transform:rotate(90deg)}\n.suite-summary:hover,.suite-rack-summary:hover{background:#152744}\n.suite-name{font-size:15px;font-weight:700;color:#e0f2fe}\n.suite-rack-name{font-size:13px;font-weight:700;color:#cfe3ff}\n.suite-pill{display:inline-flex;padding:2px 8px;border-radius:999px;background:#193657;color:#bae6fd;border:1px solid #2d527d;font-size:11px;font-weight:700}\n.suite-group-body{padding:0 12px 12px 28px}\n.suite-rack-body{padding:0 10px 10px 28px}\n.suite-table-scroll{max-width:100%;overflow:auto;border:1px solid #1c2942;border-radius:7px}\ntable.suite-table{min-width:1320px;background:#0c1729}\n.suite-table th{position:sticky;top:0;background:#132039;z-index:1}\n.suite-table td{vertical-align:top;line-height:1.4}\n.suite-table .suite-id{width:86px;font-family:Consolas,monospace}\n.suite-table .suite-title{min-width:420px;color:#d7e3f4}\n.suite-table .suite-name-cell{min-width:110px}\n.suite-table .suite-owner{min-width:150px}\n.suite-table .suite-comments{min-width:240px;max-width:420px;white-space:normal;overflow-wrap:anywhere}\n.suite-case-row{border-left:3px solid transparent}\n.suite-case-row:hover{background:#152341}\n@media(max-width:720px){.suite-toolbar{grid-template-columns:repeat(2,minmax(0,1fr))}.suite-toolbar>input{grid-column:1/-1}.suite-group-body,.suite-rack-body{padding-left:10px}.suite-summary,.suite-rack-summary{padding:12px 10px}}";
   D.CSS += "\n.dashboard-main{display:grid;grid-template-columns:64px minmax(0,1fr);align-items:start;min-width:0}\n#panels{min-width:0}\n.tabs{display:flex;flex-direction:column;flex-wrap:nowrap;align-items:center;gap:4px;width:64px;min-width:64px;padding:10px 6px 60px 8px}\n.tab{display:flex;align-items:center;justify-content:center;flex:0 0 auto;width:50px;min-width:50px;max-width:50px;min-height:72px;height:auto;padding:8px 5px;border:1px solid #1e2b45;border-radius:6px;background:#111d33;color:#9fb3d0;writing-mode:vertical-rl;text-orientation:mixed;white-space:nowrap;font-size:11px;line-height:1.1}\n.tab.active{background:#16243d;color:#fff;font-weight:600;box-shadow:inset 3px 0 0 #38bdf8}\n.panel{min-width:0;padding:16px 20px 60px 14px}\n@media(max-width:720px){.dashboard-main{grid-template-columns:54px minmax(0,1fr)}.tabs{width:54px;min-width:54px;padding:8px 4px 40px}.tab{width:44px;min-width:44px;max-width:44px;min-height:66px;padding:7px 4px;font-size:10px}.panel{padding:12px 10px 50px 8px}}";
+  D.CSS += "\n:root{--dvdash-controls-height:52px}\n.tabs{position:sticky;top:calc(var(--dvdash-controls-height) + 8px);align-self:start;z-index:12;max-height:calc(100vh - var(--dvdash-controls-height) - 16px);overflow-y:auto;scrollbar-width:thin}\n.panel-sticky,.suite-sticky{position:sticky;top:var(--dvdash-controls-height);z-index:11;background:#0b1220;padding-top:8px;padding-bottom:12px;box-shadow:0 12px 18px rgba(3,8,18,.42)}\n.panel-sticky>.grid,.suite-sticky>.suite-toolbar{margin-bottom:0}\n.suite-toolbar{grid-template-columns:repeat(4,minmax(0,1fr));width:min(980px,100%)}\n.suite-state{white-space:nowrap}\n.suite-bugs{min-width:160px}\n.suite-bugs .bug-link{margin:1px 4px 1px 0}\n@media(max-width:980px), (max-height:700px){.panel-sticky,.suite-sticky{position:static;box-shadow:none;padding-top:0}.suite-toolbar{grid-template-columns:repeat(2,minmax(0,1fr))}}\n@media(max-width:720px){.tabs{top:calc(var(--dvdash-controls-height) + 6px);max-height:calc(100vh - var(--dvdash-controls-height) - 12px)}.suite-toolbar>input{grid-column:1/-1}}";
   D.card = function (k, v, tone) {
     var c = D.el('div', 'card');
     if (tone) {
@@ -822,10 +823,71 @@
     });
     return order.concat(['Unmapped']).map(function (name) { return groups[name]; }).filter(function (group) { return group.cases.length; });
   };
+  D.xmlEsc = function (value) {
+    return String(value == null ? '' : value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+  };
+  D.excelCell = function (value, style, numeric, href) {
+    var raw = value == null || value === '' ? '-' : String(value), isNumber = numeric && /^-?\d+(?:\.\d+)?$/.test(raw);
+    var attrs = style ? ' ss:StyleID="' + D.xmlEsc(style) + '"' : '';
+    if (href) attrs += ' ss:HRef="' + D.xmlEsc(href) + '"';
+    return '<Cell' + attrs + '><Data ss:Type="' + (isNumber ? 'Number' : 'String') + '">' + D.xmlEsc(raw) + '</Data></Cell>';
+  };
+  D.suiteExportRows = function () {
+    var rows = [];
+    D.suiteInventory().forEach(function (group) {
+      group.cases.forEach(function (entry) {
+        var testCase = entry.testCase, fields = testCase.suiteFields || {}, metrics = testCase.metrics || {};
+        rows.push({
+          rack: entry.rack.label, id: testCase.id, title: testCase.title, suite: group.name, state: testCase.state,
+          changed: D.fmt(testCase.changed),
+          priority: D.hasMetric(metrics.priority) ? ('P' + (D.priorityLevel(metrics.priority) || metrics.priority)) : '-',
+          sampleSize: D.displayFieldValue(metrics.sampleSize), cycles: D.displayFieldValue(metrics.numberOfCycles), duration: D.displayFieldValue(metrics.testDuration),
+          scriptType: D.displayFieldValue(fields.scriptType), crcSdk: D.displayFieldValue(fields.crcSdk), igsOwner: D.displayFieldValue(fields.igsOwner),
+          bugs: (testCase.bugs || []).map(function (bug) { return 'BUG #' + bug.id + (bug.title ? ' - ' + bug.title : ''); }).join('; ') || '-',
+          comments: D.displayFieldValue(fields.comments), url: D.wiUrl(testCase.id)
+        });
+      });
+    });
+    return rows;
+  };
+  D.suiteExcelXml = function () {
+    var rows = D.suiteExportRows();
+    var headers = ['Rack', 'Case ID', 'Title', 'Suite', 'State', 'Changed Date', 'Priority', 'Sample Size', 'Number of Cycles', 'Test Duration', 'Script type', 'CRC SDK', 'IGS Owner', 'Linked Bugs', 'Comments', 'Azure DevOps URL'];
+    var widths = [70, 72, 360, 90, 90, 110, 60, 80, 90, 95, 80, 80, 110, 240, 260, 300];
+    var xml = '<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?>'
+      + '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">'
+      + '<Styles><Style ss:ID="Default" ss:Name="Normal"><Alignment ss:Vertical="Top"/><Font ss:FontName="Segoe UI" ss:Size="10"/></Style>'
+      + '<Style ss:ID="Header"><Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/><Font ss:FontName="Segoe UI" ss:Size="10" ss:Bold="1" ss:Color="#FFFFFF"/><Interior ss:Color="#132039" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#38BDF8"/></Borders></Style>'
+      + '<Style ss:ID="Text"><Alignment ss:Vertical="Top" ss:WrapText="1"/></Style><Style ss:ID="Link"><Font ss:Color="#0563C1" ss:Underline="Single"/><Alignment ss:Vertical="Top" ss:WrapText="1"/></Style></Styles>'
+      + '<Worksheet ss:Name="Test Suites"><Table ss:ExpandedColumnCount="16" ss:ExpandedRowCount="' + (rows.length + 1) + '" x:FullColumns="1" x:FullRows="1">';
+    widths.forEach(function (width) { xml += '<Column ss:AutoFitWidth="0" ss:Width="' + width + '"/>'; });
+    xml += '<Row ss:Height="30">'; headers.forEach(function (header) { xml += D.excelCell(header, 'Header'); }); xml += '</Row>';
+    rows.forEach(function (row) {
+      xml += '<Row>'
+        + D.excelCell(row.rack, 'Text') + D.excelCell(row.id, 'Link', false, row.url) + D.excelCell(row.title, 'Text')
+        + D.excelCell(row.suite, 'Text') + D.excelCell(row.state, 'Text') + D.excelCell(row.changed, 'Text') + D.excelCell(row.priority, 'Text')
+        + D.excelCell(row.sampleSize, 'Text', true) + D.excelCell(row.cycles, 'Text', true) + D.excelCell(row.duration, 'Text')
+        + D.excelCell(row.scriptType, 'Text') + D.excelCell(row.crcSdk, 'Text') + D.excelCell(row.igsOwner, 'Text')
+        + D.excelCell(row.bugs, 'Text') + D.excelCell(row.comments, 'Text') + D.excelCell(row.url, 'Link', false, row.url) + '</Row>';
+    });
+    xml += '</Table><WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel"><FreezePanes/><FrozenNoSplit/><SplitHorizontal>1</SplitHorizontal><TopRowBottomPane>1</TopRowBottomPane><ProtectObjects>False</ProtectObjects><ProtectScenarios>False</ProtectScenarios></WorksheetOptions>'
+      + '<AutoFilter x:Range="R1C1:R' + (rows.length + 1) + 'C16" xmlns="urn:schemas-microsoft-com:office:excel"/></Worksheet></Workbook>';
+    return { xml: xml, count: rows.length };
+  };
+  D.exportSuiteExcel = function () {
+    var result = D.suiteExcelXml(), now = new Date();
+    function pad(value) { return value < 10 ? '0' + value : String(value); }
+    var stamp = now.getFullYear() + pad(now.getMonth() + 1) + pad(now.getDate()) + '-' + pad(now.getHours()) + pad(now.getMinutes());
+    var blob = new Blob([result.xml], { type: 'application/vnd.ms-excel;charset=utf-8' });
+    var link = D.el('a'); link.href = URL.createObjectURL(blob); link.download = 'C4143-Test-Suites-' + stamp + '.xls';
+    document.body.appendChild(link); link.click(); link.remove();
+    setTimeout(function () { URL.revokeObjectURL(link.href); }, 5000);
+    D.setStatus('Downloaded Excel workbook with ' + result.count + ' synchronized Test Suite case rows.', 'info');
+  };
   D.suiteCaseTable = function (entries, suiteName) {
     var scroll = D.el('div', 'suite-table-scroll');
     var table = D.el('table', 'suite-table'), thead = D.el('thead'), header = D.el('tr');
-    ['ID', 'Title', 'Suite', 'Priority', 'Script type', 'CRC SDK', 'IGS Owner', 'Comments'].forEach(function (label) { header.appendChild(D.el('th', null, label)); });
+    ['Rack', 'ID', 'Title', 'Suite', 'State', 'Changed', 'Priority', 'Sample Size', 'Cycles', 'Duration', 'Script type', 'CRC SDK', 'IGS Owner', 'Linked Bugs', 'Comments'].forEach(function (label) { header.appendChild(D.el('th', null, label)); });
     thead.appendChild(header); table.appendChild(thead);
     var tbody = D.el('tbody');
     entries.forEach(function (entry) {
@@ -833,18 +895,30 @@
       var row = D.el('tr', 'suite-case-row');
       row.style.borderLeftColor = D.colorFor(testCase.state);
       row.title = 'Rack: ' + entry.rack.label + ' · State: ' + testCase.state;
+      row.appendChild(D.el('td', null, entry.rack.label));
       var idCell = D.el('td', 'suite-id'), idLink = D.el('a', 'caseid', String(testCase.id));
       idLink.href = D.wiUrl(testCase.id); idLink.target = '_blank'; idLink.rel = 'noopener'; idCell.appendChild(idLink); row.appendChild(idCell);
       row.appendChild(D.el('td', 'suite-title', testCase.title));
       row.appendChild(D.el('td', 'suite-name-cell', suiteName));
+      var stateCell = D.el('td', 'suite-state'); stateCell.appendChild(D.chip(testCase.state)); row.appendChild(stateCell);
+      row.appendChild(D.el('td', null, D.fmt(testCase.changed)));
       var priority = D.priorityLevel(metrics.priority);
       row.appendChild(D.el('td', null, D.hasMetric(metrics.priority) ? (priority ? 'P' + priority : D.displayFieldValue(metrics.priority)) : '-'));
+      row.appendChild(D.el('td', null, D.displayFieldValue(metrics.sampleSize)));
+      row.appendChild(D.el('td', null, D.displayFieldValue(metrics.numberOfCycles)));
+      row.appendChild(D.el('td', null, D.displayFieldValue(metrics.testDuration)));
       row.appendChild(D.el('td', null, D.displayFieldValue(fields.scriptType)));
       row.appendChild(D.el('td', null, D.displayFieldValue(fields.crcSdk)));
       row.appendChild(D.el('td', 'suite-owner', D.displayFieldValue(fields.igsOwner)));
+      var bugsCell = D.el('td', 'suite-bugs');
+      if ((testCase.bugs || []).length) (testCase.bugs || []).forEach(function (bug) { bugsCell.appendChild(D.bugLink(bug)); });
+      else bugsCell.textContent = '-';
+      row.appendChild(bugsCell);
       var comments = D.displayFieldValue(fields.comments), commentsCell = D.el('td', 'suite-comments', comments);
       commentsCell.title = comments === '-' ? '' : comments; row.appendChild(commentsCell);
       row._suiteSearch = [testCase.id, testCase.title, suiteName, entry.rack.label, testCase.state, metrics.priority,
+        metrics.sampleSize, metrics.numberOfCycles, metrics.testDuration, D.fmt(testCase.changed),
+        (testCase.bugs || []).map(function (bug) { return 'BUG #' + bug.id + ' ' + bug.title + ' ' + bug.state; }).join(' '),
         D.displayFieldValue(fields.scriptType), D.displayFieldValue(fields.crcSdk), D.displayFieldValue(fields.igsOwner), comments].join(' ').toLowerCase();
       tbody.appendChild(row);
     });
@@ -858,19 +932,21 @@
       uniqueTitles[D.normalizeSuiteTitle(entry.testCase.title)] = 1;
       if (D.suiteFor(entry.testCase) === 'Unmapped') unmapped++;
     });
-    var cards = D.el('div', 'cards');
+    var sticky = D.el('div', 'suite-sticky'), cards = D.el('div', 'cards');
     [
       D.card('TEST SUITES', groups.filter(function (group) { return group.name !== 'Unmapped'; }).length, '#38bdf8'),
       D.card('UNIQUE TEST ITEMS', Object.keys(uniqueTitles).length, '#c084fc'),
       D.card('RACK CASES', allEntries.length, '#34d399'),
       D.card('UNMAPPED CASES', unmapped, unmapped ? '#fb7185' : '#2dd4bf')
     ].forEach(function (card) { cards.appendChild(card); });
-    wrap.appendChild(cards);
-    wrap.appendChild(D.el('p', 'suite-intro', 'Suite mapping follows the supplied test inventory. Expand Suite, then Rack, to review each case. The table remains horizontally scrollable on smaller screens.'));
+    sticky.appendChild(cards);
+    sticky.appendChild(D.el('p', 'suite-intro', 'Suite cases use the same live State, Bug, Priority, Sample Size, Number of Cycles, Test Duration and Changed Date data as the Rack tabs. Expand Suite, then Rack, to review each case.'));
     var toolbar = D.el('div', 'suite-toolbar');
-    var expand = D.el('button', null, 'Expand all'), collapse = D.el('button', null, 'Collapse all'), search = D.el('input');
+    var expand = D.el('button', null, 'Expand all'), collapse = D.el('button', null, 'Collapse all');
+    var download = D.el('button', 'primary', 'Download Excel (.xls)'), search = D.el('input');
+    download.id = 'suiteExcelBtn'; download.title = 'Download all synchronized Test Suite case fields for Excel';
     search.placeholder = 'Search suite / rack / case / field …';
-    toolbar.appendChild(expand); toolbar.appendChild(collapse); toolbar.appendChild(search); wrap.appendChild(toolbar);
+    toolbar.appendChild(expand); toolbar.appendChild(collapse); toolbar.appendChild(download); toolbar.appendChild(search); sticky.appendChild(toolbar); wrap.appendChild(sticky);
     var groupsHost = D.el('div', 'suite-groups'); wrap.appendChild(groupsHost);
     groups.forEach(function (group, groupIndex) {
       var suiteDetails = D.el('details', 'suite-group');
@@ -897,6 +973,7 @@
     });
     expand.addEventListener('click', function () { wrap.querySelectorAll('details.suite-group,details.suite-rack').forEach(function (details) { details.open = true; }); });
     collapse.addEventListener('click', function () { wrap.querySelectorAll('details.suite-group,details.suite-rack').forEach(function (details) { details.open = false; }); });
+    download.addEventListener('click', function () { D.exportSuiteExcel(); });
     search.addEventListener('input', function () { D.applySuiteFilter(wrap, search.value); });
     return wrap;
   };
@@ -938,6 +1015,20 @@
     var tr2 = D.el('tr', 'total'); tr2.appendChild(D.el('td', null, 'Total'));
     states.forEach(function (s) { tr2.appendChild(D.el('td', 'num', String(totals[s] || 0))); });
     tr2.appendChild(D.el('td', 'num', String(grand))); tb.appendChild(tr2); t.appendChild(tb); return t;
+  };
+  D.updateStickyOffset = function () {
+    var controls = document.querySelector('.controls');
+    if (controls) document.documentElement.style.setProperty('--dvdash-controls-height', Math.ceil(controls.getBoundingClientRect().height) + 'px');
+  };
+  D.installStickyOffset = function () {
+    if (window.__dvdashControlsObserver && window.__dvdashControlsObserver.disconnect) window.__dvdashControlsObserver.disconnect();
+    if (window.__dvdashStickyResize) window.removeEventListener('resize', window.__dvdashStickyResize);
+    window.__dvdashStickyResize = D.updateStickyOffset; window.addEventListener('resize', window.__dvdashStickyResize);
+    if (window.ResizeObserver) {
+      window.__dvdashControlsObserver = new ResizeObserver(D.updateStickyOffset);
+      var controls = document.querySelector('.controls'); if (controls) window.__dvdashControlsObserver.observe(controls);
+    }
+    D.updateStickyOffset(); requestAnimationFrame(D.updateStickyOffset);
   };
   D.buildShell = function () {
     document.head.innerHTML = ''; document.body.innerHTML = '';
@@ -992,6 +1083,7 @@
     ['Feature', 'System Requirement', 'Test Case'].forEach(function (type) { tl.appendChild(D.typeBadge(type)); });
     ctl.appendChild(tl);
     document.body.appendChild(ctl);
+    D.installStickyOffset();
 
     var banner = D.el('div', 'banner info', 'Preparing to load…'); banner.id = 'banner'; document.body.appendChild(banner);
     var main = D.el('main', 'dashboard-main');
@@ -1003,6 +1095,7 @@
       D.S.mode = e.target.value;
       try { localStorage.setItem('dvdashMode', D.S.mode); } catch (err) { }
       document.getElementById('proxyWrap').style.display = D.S.mode === 'proxy' ? 'inline-flex' : 'none';
+      D.updateStickyOffset();
       D.load();
     });
     ps.addEventListener('click', function () {
@@ -1045,14 +1138,14 @@
         refs.cProgress.title = 'Test Cases whose current Azure DevOps State is In Progress.';
         refs.cBugs.title = 'Unique linked Bugs / Test Cases affected by at least one linked Bug.';
         [refs.cRacks, refs.cFeat, refs.cReq, refs.cCase, refs.cFiltered, refs.cPass, refs.cFail, refs.cProgress, refs.cBugs].forEach(function (c) { cards.appendChild(c); });
-        panel.appendChild(cards);
+        var stickyTop = D.el('div', 'panel-sticky'); stickyTop.appendChild(cards);
         var grid = D.el('div', 'grid');
         var b1 = D.box('Test Case state distribution — all Racks');
         refs.chartHost = D.el('div', 'chartwrap'); b1.appendChild(refs.chartHost);
         refs.legendHost = D.el('div'); b1.appendChild(refs.legendHost);
         var b2 = D.box('Rack comparison (stacked bar)');
         refs.cmpHost = D.el('div', 'chartwrap'); b2.appendChild(refs.cmpHost);
-        grid.appendChild(b1); grid.appendChild(b2); panel.appendChild(grid);
+        grid.appendChild(b1); grid.appendChild(b2); stickyTop.appendChild(grid); panel.appendChild(stickyTop);
         var b3 = D.box('Rack × State summary table');
         refs.tableBox = D.el('div'); b3.appendChild(refs.tableBox); panel.appendChild(b3);
         var bPriority = D.box('Test Case completion by Priority — Closed = completed');
@@ -1070,14 +1163,14 @@
         refs.cBugs = D.card('LINKED BUGS', 0, '#f87171');
         refs.cBugs.title = 'Unique Bug work items linked from Test Cases in this Rack.';
         [refs.cFeat, refs.cReq, refs.cCase, refs.cFiltered, refs.cBugs].forEach(function (c) { cards.appendChild(c); });
-        panel.appendChild(cards);
+        var rackSticky = D.el('div', 'panel-sticky'); rackSticky.appendChild(cards);
         var g = D.el('div', 'grid');
         var rb1 = D.box(def.rack.label + ' State distribution');
         refs.chartHost = D.el('div', 'chartwrap'); rb1.appendChild(refs.chartHost);
         refs.legendHost = D.el('div'); rb1.appendChild(refs.legendHost);
         var rb2 = D.box('State summary table');
         refs.tableBox = D.el('div'); rb2.appendChild(refs.tableBox);
-        g.appendChild(rb1); g.appendChild(rb2); panel.appendChild(g);
+        g.appendChild(rb1); g.appendChild(rb2); rackSticky.appendChild(g); panel.appendChild(rackSticky);
         var rbPriority = D.box('Test Case completion by Priority — Closed = completed');
         refs.priorityBox = D.el('div'); rbPriority.appendChild(refs.priorityBox); panel.appendChild(rbPriority);
         var rbMetrics = D.box('Sample Size, Number_of_cycles & Test Duration — largest / longest first');
