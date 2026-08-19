@@ -4,7 +4,7 @@ C4143 DV-Scale Rack Test Status Dashboard 是一個 Tampermonkey userscript。�
 
 ## 目前版本
 
-- Dashboard：[C4143-DVScale-Dashboard.user.js](./C4143-DVScale-Dashboard.user.js)（固定安裝網址，腳本內版本 v1.8.3）
+- Dashboard：[C4143-DVScale-Dashboard.user.js](./C4143-DVScale-Dashboard.user.js)（固定安裝網址，腳本內版本 v1.8.5）
 - 開發與維護文件：[C4143-DVScale-Dashboard-HANDOFF.md](./C4143-DVScale-Dashboard-HANDOFF.md)
 - Azure DevOps organization：`https://azurecsi.visualstudio.com`
 - Azure DevOps project：`Dev`
@@ -22,6 +22,10 @@ v1.7.2 將 Overview、Rack 1～5 與最後一頁改為左側直式導覽。分�
 v1.7.3 修正 re-query 完成提示的顯示時間：藍色資訊與黃色警告會在 4.5 秒開始淡出、5.2 秒完全隱藏；只有紅色載入錯誤會保留，方便使用者閱讀與排除問題。
 
 v1.8.1 將固定範圍縮小為控制列、左側分頁與摘要卡；圓餅圖、比較圖及以下內容會正常跟隨頁面捲動。所有摘要卡強制維持單列，空間不足時只在卡片列內水平捲動，不會換到下一列。**Download Excel (.xls)** 改為輸出 Rack 1 Test Features 的 16 欄 Excel 2003 XML 工作表，包含凍結標題列、AutoFilter 與 Azure DevOps hyperlink，無需外部 CDN。
+
+v1.8.4 讓同一列摘要卡維持完全相同的寬度與高度，並依每個數值的實際長度自動微調字級。`290 / 290`、Pass／Fail 數量與百分比等較長內容會完整顯示，不再使用省略號；窄螢幕仍維持單列，改由卡片列內的水平捲動查看其餘卡片。
+
+v1.8.5 將 Overview 的 Pass／Fail Rate 限制為最多一位小數，整數百分比不保留 `.0`。例如一般結果顯示 `72 · 24.8%`、完整完成顯示 `290 · 100%`；當 Pass 或 Fail 尚無任何數量時，該卡片只顯示 `0%`。
 
 ## 使用 Tampermonkey 安裝
 
