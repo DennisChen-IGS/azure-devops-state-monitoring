@@ -684,3 +684,22 @@ Tampermonkey 會按設定的更新間隔讀取固定 URL，比較 `@version`，�
 - Overview 應顯示 `290 / 290`；Rack 1～5 應各顯示 `58 / 58`；Test Features 應顯示 `58 / 58` listed/source。
 - 正常 fixture 實測結果符合以上數值，Excel export count 為 58，Browser Console 無 Error／Warning。
 - 缺漏 fixture（每 Rack 57）實測 Overview 變為紅色 `285 / 290`，Tooltip 顯示 5 missing，狀態提示正確列出 Rack 1～5 各為 `57/58`。
+
+---
+
+## 22. 2026-08-19 等寬摘要卡與完整數值顯示（v1.8.4）
+
+### 22.1 問題與修正
+
+- Overview 的 9 張摘要卡雖然等分整列，但原本統一使用 22px 數字與 `text-overflow: ellipsis`，造成 `290 / 290`、Pass Rate 與 Fail Rate 在 1280px 視窗被截成省略號。
+- 卡片改為相同的 118px flex basis、相同 padding 與 stretch 高度；空間充足時平均延展，空間不足時仍在 `.cards` 內水平捲動，不讓卡片換行或超出邊界。
+- 新增 `D.fitCardValues()`：每次資料 refresh、分頁切換及視窗 resize 後，從 22px 開始只縮小超出可用寬度的數值，最低為 15px。短數字保持 22px，數值本身不再使用省略號。
+
+### 22.2 Browser QA
+
+- 1280 × 720：9 張 Overview 卡片寬度皆約 118.98px；所有數值的 `scrollWidth <= clientWidth`，0 張被截斷。
+- `290 / 290` 自動使用 20px；`72 · 24.8%` 與 `73 · 25.2%` 自動使用 18px；其餘短數值維持 22px。
+- 390 × 720：9 張卡片寬度皆為 118px，卡片列使用自己的水平捲動；所有數值仍完整。Rack 1 的 5 張卡片亦等寬且無截斷。
+- Test Features 維持 58 個 Case rows、Excel 58 筆資料／59 列（含 Header），4 張摘要卡等寬且沒有截斷。
+- 缺漏 fixture 維持紅色 `285 / 290` 與 Rack 1～5 各 `57/58` 的 Coverage warning，所有摘要數值完整。
+- Browser Console：0 Error／0 Warning；JavaScript `node --check` 與 `git diff --check` 通過。
