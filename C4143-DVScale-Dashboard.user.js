@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         C4143 DV-Scale Rack Test Status Dashboard
 // @namespace    local.ado.dvscale.dashboard
-// @version      1.8.4
-// @description  Keeps equal-width summary cards while fitting every numeric value without ellipsis.
+// @version      1.8.5
+// @description  Keeps equal-width summary cards and formats Pass/Fail rates with concise percentages.
 // @homepageURL  https://github.com/alan512627/azure-devops-state-monitoring
 // @supportURL   https://github.com/alan512627/azure-devops-state-monitoring/issues
 // @updateURL    https://raw.githubusercontent.com/alan512627/azure-devops-state-monitoring/main/C4143-DVScale-Dashboard.user.js
@@ -291,7 +291,13 @@
     return bugs;
   };
   D.rate = function (count, total) {
-    return total ? (count * 100 / total).toFixed(1) + '%' : '-';
+    if (!count || !total) return '0%';
+    var percentage = Math.min(100, Math.max(0, count * 100 / total));
+    var rounded = Math.round(percentage * 10) / 10;
+    return (rounded % 1 ? rounded.toFixed(1) : rounded.toFixed(0)) + '%';
+  };
+  D.outcomeValue = function (count, rate) {
+    return count ? count + ' · ' + rate : '0%';
   };
   D.outcomeSummary = function (cases) {
     var summary = { total: cases.length, pass: 0, fail: 0, inProgress: 0 };
@@ -1136,8 +1142,8 @@
         p.cReq._val.textContent = allReq.length;
         D.setCoverageCard(p.cCase, allCases.length, D.EXPECTED.rackCount * D.EXPECTED.casesPerRack);
         p.cFiltered._val.textContent = f.length;
-        p.cPass._val.textContent = outcomes.pass + ' · ' + outcomes.passRate;
-        p.cFail._val.textContent = outcomes.fail + ' · ' + outcomes.failRate;
+        p.cPass._val.textContent = D.outcomeValue(outcomes.pass, outcomes.passRate);
+        p.cFail._val.textContent = D.outcomeValue(outcomes.fail, outcomes.failRate);
         p.cProgress._val.textContent = outcomes.inProgress;
         p.cBugs._val.textContent = linkedBugs.length + ' / ' + bugCases.length;
         p.tableBox.innerHTML = ''; p.tableBox.appendChild(D.rackTable());

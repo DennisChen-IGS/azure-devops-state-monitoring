@@ -703,3 +703,22 @@ Tampermonkey 會按設定的更新間隔讀取固定 URL，比較 `@version`，�
 - Test Features 維持 58 個 Case rows、Excel 58 筆資料／59 列（含 Header），4 張摘要卡等寬且沒有截斷。
 - 缺漏 fixture 維持紅色 `285 / 290` 與 Rack 1～5 各 `57/58` 的 Coverage warning，所有摘要數值完整。
 - Browser Console：0 Error／0 Warning；JavaScript `node --check` 與 `git diff --check` 通過。
+
+---
+
+## 23. 2026-08-19 Pass／Fail 百分比精簡格式（v1.8.5）
+
+### 23.1 顯示規則
+
+- `D.rate()` 將百分比四捨五入到最多一位小數，並移除整數百分比尾端的 `.0`；百分比限制在 `0%`～`100%`。
+- 新增 `D.outcomeValue()`；Pass 或 Fail 數量為 0 時只顯示 `0%`，不再顯示 `0 · 0.0%`。
+- 有結果時保留「Case 數量 · Rate」格式，例如 `72 · 24.8%`；完整完成顯示 `290 · 100%`。
+
+### 23.2 Browser QA
+
+- 一般 290 Cases fixture：Pass `72 · 24.8%`、Fail `73 · 25.2%`。
+- 全部 Not Started：Pass `0%`、Fail `0%`、In Progress `0`。
+- 全部 Closed：Pass `290 · 100%`、Fail `0%`；全部 Blocked 則 Pass `0%`、Fail `290 · 100%`。
+- 1280 × 720 與 390 × 720 均維持等寬卡片，Pass／Fail 數值沒有截斷。
+- Rack 1／Overview 分頁切換正常；Browser Console 0 Error／0 Warning。
+- JavaScript `node --check` 與 `git diff --check` 通過。
