@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 98 98" role="img" aria-labelledby="title">
+  <title id="title">C4143 DV-Scale Dashboard</title>
+  <rect width="98" height="98" rx="18" fill="#0b1220"/>
+  <rect x="14" y="17" width="70" height="64" rx="10" fill="#132039" stroke="#38bdf8" stroke-width="3"/>
+  <path d="M25 65V49M39 65V35M53 65V43M67 65V27" fill="none" stroke="#34d399" stroke-width="7" stroke-linecap="round"/>
+  <path d="M22 70h54" stroke="#7dd3fc" stroke-width="3" stroke-linecap="round"/>
+</svg>

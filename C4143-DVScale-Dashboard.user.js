@@ -1,15 +1,16 @@
 // ==UserScript==
 // @name         C4143 DV-Scale Rack Test Status Dashboard
 // @namespace    local.ado.dvscale.dashboard
-// @version      1.8.5
-// @description  Keeps equal-width summary cards and formats Pass/Fail rates with concise percentages.
+// @version      1.9.0
+// @description  Adds Analytics trends, real Test Results, weekly exports, snapshot differences, and Azure DevOps Extension support.
 // @homepageURL  https://github.com/alan512627/azure-devops-state-monitoring
 // @supportURL   https://github.com/alan512627/azure-devops-state-monitoring/issues
 // @updateURL    https://raw.githubusercontent.com/alan512627/azure-devops-state-monitoring/main/C4143-DVScale-Dashboard.user.js
 // @downloadURL  https://raw.githubusercontent.com/alan512627/azure-devops-state-monitoring/main/C4143-DVScale-Dashboard.user.js
 // @match        https://azurecsi.visualstudio.com/*
 // @run-at       document-idle
-// @grant        none
+// @grant        GM_xmlhttpRequest
+// @connect      analytics.dev.azure.com
 // ==/UserScript==
 
 /* ------------------------------------------------------------------
@@ -53,12 +54,18 @@
 ------------------------------------------------------------------ */
 (function () {
   "use strict";
-  var isDashboardEntry = location.hash.indexOf("dvdash") >= 0 ||
+  var extensionContext = window.__C4143_EXTENSION__ || null;
+  var isDashboardEntry = !!extensionContext || location.hash.indexOf("dvdash") >= 0 ||
     /^\/_apis\/projects\/?$/i.test(location.pathname);
   if (!isDashboardEntry) return;
   var D = {};
-  D.CFG = {"org":"https://azurecsi.visualstudio.com","project":"Dev","queryId":"9254024e-6a97-44ed-953b-1aa07d38fb48","queryUrl":"https://azurecsi.visualstudio.com/Dev/_queries/query/9254024e-6a97-44ed-953b-1aa07d38fb48/"};
-  D.EXPECTED = { rackCount: 5, casesPerRack: 58 };
+  D.CFG = {"org":"https://azurecsi.visualstudio.com","orgName":"azurecsi","project":"Dev","queryId":"9254024e-6a97-44ed-953b-1aa07d38fb48","queryUrl":"https://azurecsi.visualstudio.com/Dev/_queries/query/9254024e-6a97-44ed-953b-1aa07d38fb48/","analyticsVersion":"v3.0-preview","trendDays":30,"testResultDays":28};
+  if (extensionContext) {
+    D.CFG.org = String(extensionContext.org || D.CFG.org).replace(/\/+$/, '');
+    D.CFG.orgName = extensionContext.orgName || D.CFG.orgName;
+    D.CFG.project = extensionContext.project || D.CFG.project;
+    D.CFG.queryUrl = D.CFG.org + '/' + encodeURIComponent(D.CFG.project) + '/_queries/query/' + D.CFG.queryId + '/';
+  }
   D.STATE_COLORS = {"Not Started":"#94a3b8","New":"#60a5fa","Proposed":"#f5b544","Design":"#a78bfa","In Progress":"#818cf8","Active":"#818cf8","Ready":"#38bdf8","Committed":"#22d3ee","Passed":"#34d399","Closed":"#2dd4bf","Done":"#2dd4bf","Completed":"#2dd4bf","Failed":"#f87171","Blocked":"#fb7185","Removed":"#9ca3af","Resolved":"#22d3ee","Paused":"#fbbf24"};
   D.TYPE_COLORS = {"Epic":"#c084fc","Feature":"#38bdf8","System Requirement":"#fbbf24","Test Case":"#34d399","User Story":"#818cf8","Task":"#60a5fa","Bug":"#fb7185","Issue":"#fb923c"};
   D.STATE_ORDER = ["Not Started","New","Proposed","Design","Ready","Committed","Active","In Progress","Paused","Blocked","Failed","Passed","Resolved","Closed","Done","Completed","Removed"];
@@ -74,7 +81,7 @@
     igsOwner: { aliases: ['IGS Owner'] },
     comments: { aliases: ['Comments', 'Comment'] }
   };
-  D.S = {racks:[],loadedAt:null,range:"all",chartType:"pie",panels:[],active:0,mode:"live"};
+  D.S = {racks:[],loadedAt:null,range:"all",chartType:"pie",panels:[],active:0,mode:"live",analyticsTrend:{status:"idle",days:[]},testResults:{status:"idle",runs:[]},snapshotComparison:null};
   D.el = function (t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; };
   D.svg = function (t, a) { var e = document.createElementNS('http://www.w3.org/2000/svg', t); for (var k in a) e.setAttribute(k, a[k]); return e; };
   D.colorFor = function (s) { return D.STATE_COLORS[s] || '#cbd5e1'; };
@@ -125,7 +132,8 @@
     if (opts.headers) for (var k in opts.headers) headers[k] = opts.headers[k];
     var init = { method: opts.method || 'GET', headers: headers };
     var pat = localStorage.getItem('adoDashPat');
-    if (D.S.mode === 'proxy') { init.credentials = 'omit'; if (pat) headers['Authorization'] = 'Basic ' + btoa(':' + pat); }
+    if (extensionContext && extensionContext.token) { init.credentials = 'omit'; headers['Authorization'] = 'Bearer ' + extensionContext.token; }
+    else if (D.S.mode === 'proxy') { init.credentials = 'omit'; if (pat) headers['Authorization'] = 'Basic ' + btoa(':' + pat); }
     else { init.credentials = 'include'; }
     if (opts.body) init.body = opts.body;
     var res = await fetch(url, init);
@@ -137,6 +145,26 @@
     }
     if ((res.headers.get('content-type') || '').indexOf('json') < 0) throw new Error('AUTH');
     return res.json();
+  };
+  D.analyticsFetch = async function (url) {
+    try { return await D.apiFetch(url); }
+    catch (fetchError) {
+      if (extensionContext || typeof GM_xmlhttpRequest !== 'function') throw fetchError;
+      return new Promise(function (resolve, reject) {
+        GM_xmlhttpRequest({
+          method: 'GET', url: url, withCredentials: true,
+          headers: { Accept: 'application/json' },
+          onload: function (response) {
+            if (response.status === 401 || response.status === 203 || response.status === 302) { reject(new Error('AUTH')); return; }
+            if (response.status < 200 || response.status >= 300) { reject(new Error('HTTP ' + response.status + ': Analytics OData request failed')); return; }
+            try { resolve(JSON.parse(response.responseText)); }
+            catch (parseError) { reject(new Error('Analytics OData returned invalid JSON')); }
+          },
+          onerror: function () { reject(fetchError); },
+          ontimeout: function () { reject(new Error('Analytics OData request timed out')); }
+        });
+      });
+    }
   };
   D.normalizeFieldName = function (value) {
     return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
@@ -280,6 +308,168 @@
     racks.forEach(function (r) { var m = /rack\s*#?\s*(\d+)/i.exec(r.title); r.num = m ? +m[1] : 999; r.label = m ? 'Rack ' + m[1] : r.title; });
     racks.sort(function (a, b) { return a.num - b.num; });
     return { racks: racks, count: ids.length };
+  };
+  D.allCases = function () {
+    var cases = [];
+    (D.S.racks || []).forEach(function (rack) { cases = cases.concat(D.collect(rack, 'Test Case')); });
+    return cases;
+  };
+  D.mapLimit = async function (items, limit, worker) {
+    var results = new Array(items.length), cursor = 0;
+    async function run() {
+      while (cursor < items.length) {
+        var index = cursor++;
+        results[index] = await worker(items[index], index);
+      }
+    }
+    var workers = [];
+    for (var i = 0; i < Math.min(limit, items.length); i++) workers.push(run());
+    await Promise.all(workers);
+    return results;
+  };
+  D.isoDay = function (value) {
+    var date = value instanceof Date ? value : new Date(value);
+    if (isNaN(date.getTime())) return '';
+    return date.getUTCFullYear() + '-' + String(date.getUTCMonth() + 1).padStart(2, '0') + '-' + String(date.getUTCDate()).padStart(2, '0');
+  };
+  D.dateSk = function (date) { return +(D.isoDay(date).replace(/-/g, '')); };
+  D.analyticsBaseFor = function () {
+    return 'https://analytics.dev.azure.com/' + encodeURIComponent(D.CFG.orgName) + '/' + encodeURIComponent(D.CFG.project)
+      + '/_odata/' + D.CFG.analyticsVersion;
+  };
+  D.loadAnalyticsTrend = async function (cases) {
+    var ids = cases.map(function (item) { return +item.id; }).filter(function (id) { return isFinite(id); });
+    if (!ids.length) { D.S.analyticsTrend = { status: 'ok', days: [], source: 'Analytics OData' }; return; }
+    var from = new Date(); from.setUTCHours(0, 0, 0, 0); from.setUTCDate(from.getUTCDate() - (D.CFG.trendDays - 1));
+    var chunks = [];
+    for (var i = 0; i < ids.length; i += 45) chunks.push(ids.slice(i, i + 45));
+    var responses = await D.mapLimit(chunks, 3, async function (chunk) {
+      var idFilter = chunk.map(function (id) { return 'WorkItemId eq ' + id; }).join(' or ');
+      var apply = "filter(DateSK ge " + D.dateSk(from) + " and WorkItemType eq 'Test Case' and (" + idFilter
+        + '))/groupby((DateSK,State),aggregate($count as Count))';
+      var url = D.analyticsBaseFor() + '/WorkItemSnapshot?$apply=' + encodeURIComponent(apply) + '&$orderby=' + encodeURIComponent('DateSK asc');
+      return D.analyticsFetch(url);
+    });
+    var byDay = {};
+    responses.forEach(function (response) {
+      (response.value || []).forEach(function (row) {
+        var raw = String(row.DateSK || ''), day = raw.length === 8 ? raw.slice(0, 4) + '-' + raw.slice(4, 6) + '-' + raw.slice(6) : D.isoDay(row.DateValue);
+        if (!day) return;
+        var state = row.State || 'Unknown';
+        byDay[day] = byDay[day] || {};
+        byDay[day][state] = (byDay[day][state] || 0) + (+row.Count || 0);
+      });
+    });
+    var days = Object.keys(byDay).sort().map(function (day) { return { date: day, counts: byDay[day] }; });
+    D.S.analyticsTrend = { status: 'ok', days: days, source: 'Analytics OData WorkItemSnapshot', from: D.isoDay(from), loadedAt: new Date().toISOString() };
+  };
+  D.normalizedTitle = function (value) { return String(value || '').trim().replace(/\s+/g, ' ').toLowerCase(); };
+  D.testRunUrl = function (runId) {
+    return D.CFG.org + '/' + encodeURIComponent(D.CFG.project) + '/_TestManagement/Runs?runId=' + encodeURIComponent(runId) + '&_a=runCharts';
+  };
+  D.fetchRunResults = async function (base, run) {
+    var output = [], skip = 0;
+    while (skip < 10000) {
+      var response = await D.apiFetch(base + '/' + encodeURIComponent(D.CFG.project) + '/_apis/test/Runs/' + run.id
+        + '/results?detailsToInclude=Point&$skip=' + skip + '&$top=1000&api-version=7.1');
+      var values = response.value || [];
+      output = output.concat(values);
+      if (values.length < 1000) break;
+      skip += values.length;
+    }
+    return output;
+  };
+  D.loadTestResults = async function (base, cases) {
+    var now = new Date(), windows = [];
+    now.setUTCMilliseconds(0);
+    for (var offset = 0; offset < D.CFG.testResultDays; offset += 7) {
+      var max = new Date(now.getTime() - offset * 86400000);
+      var min = new Date(now.getTime() - Math.min(offset + 7, D.CFG.testResultDays) * 86400000 + 1000);
+      windows.push({ min: min.toISOString(), max: max.toISOString() });
+    }
+    var planMap = {}, planError = '';
+    try {
+      var planResponse = await D.apiFetch(base + '/' + encodeURIComponent(D.CFG.project) + '/_apis/testplan/plans?filterActivePlans=false&api-version=7.1');
+      (planResponse.value || []).forEach(function (plan) { planMap[String(plan.id)] = plan.name || ('Plan ' + plan.id); });
+    } catch (planLoadError) { planError = String((planLoadError && planLoadError.message) || planLoadError); }
+    var runResponses = await D.mapLimit(windows, 2, function (windowRange) {
+      var url = base + '/' + encodeURIComponent(D.CFG.project) + '/_apis/test/runs?minLastUpdatedDate=' + encodeURIComponent(windowRange.min)
+        + '&maxLastUpdatedDate=' + encodeURIComponent(windowRange.max) + '&$top=100&api-version=7.1';
+      return D.apiFetch(url);
+    });
+    var runMap = {};
+    runResponses.forEach(function (response) { (response.value || []).forEach(function (run) { runMap[run.id] = run; }); });
+    var runs = Object.keys(runMap).map(function (id) { return runMap[id]; }).sort(function (a, b) {
+      return String(b.completedDate || b.startedDate || '').localeCompare(String(a.completedDate || a.startedDate || ''));
+    });
+    var resultSets = await D.mapLimit(runs, 4, async function (run) {
+      try { return await D.fetchRunResults(base, run); }
+      catch (error) { run._resultError = String((error && error.message) || error); return []; }
+    });
+    var byId = {}, byTitle = {};
+    cases.forEach(function (testCase) {
+      byId[String(testCase.id)] = testCase;
+      var key = D.normalizedTitle(testCase.title);
+      (byTitle[key] = byTitle[key] || []).push(testCase);
+      testCase.latestResult = null;
+    });
+    var matchedResults = 0;
+    runs.forEach(function (run, runIndex) {
+      run.resultCount = (resultSets[runIndex] || []).length;
+      (resultSets[runIndex] || []).forEach(function (result) {
+        var resultCaseId = result.testCase && result.testCase.id != null ? String(result.testCase.id) : '';
+        var testCase = byId[resultCaseId] || null, method = testCase ? 'id' : '';
+        if (!testCase) {
+          var exactTitle = byTitle[D.normalizedTitle(result.testCaseTitle)] || [];
+          if (exactTitle.length === 1) { testCase = exactTitle[0]; method = 'exact title'; }
+        }
+        if (!testCase) return;
+        var completed = result.completedDate || result.dateCompleted || result.lastUpdatedDate || run.completedDate || run.startedDate || null;
+        var mapped = {
+          id: result.id, outcome: result.outcome || 'Unspecified', state: result.state || '', completedDate: completed,
+          runId: run.id, runName: run.name || ('Run ' + run.id), runUrl: D.testRunUrl(run.id), matchMethod: method
+        };
+        if (!testCase.latestResult || String(mapped.completedDate || '') > String(testCase.latestResult.completedDate || '')) testCase.latestResult = mapped;
+        matchedResults++;
+      });
+    });
+    var summary = D.testResultSummary(cases);
+    D.S.testResults = {
+      status: 'ok', source: 'Azure DevOps Test Runs / Results', lookbackDays: D.CFG.testResultDays,
+      runs: runs.map(function (run) {
+        var planId = run.plan && run.plan.id != null ? String(run.plan.id) : '';
+        return { id: run.id, name: run.name || ('Run ' + run.id), planId: planId, planName: planMap[planId] || (run.plan && run.plan.name) || '', state: run.state || '', startedDate: run.startedDate || null, completedDate: run.completedDate || null, resultCount: run.resultCount || 0, url: D.testRunUrl(run.id), error: run._resultError || '' };
+      }),
+      testPlans: Object.keys(planMap).map(function (id) { return { id: id, name: planMap[id] }; }), testPlanWarning: planError,
+      matchedResults: matchedResults, summary: summary, loadedAt: new Date().toISOString()
+    };
+  };
+  D.isFailedTestOutcome = function (outcome) { return /^(failed|blocked|aborted|error|timeout)$/i.test(String(outcome || '').trim()); };
+  D.testResultSummary = function (cases) {
+    var summary = { cases: cases.length, matched: 0, passed: 0, failed: 0, other: 0, noResult: 0, denominator: 0 };
+    cases.forEach(function (testCase) {
+      var result = testCase.latestResult;
+      if (!result) { summary.noResult++; return; }
+      summary.matched++;
+      if (/^passed$/i.test(result.outcome)) summary.passed++;
+      else if (D.isFailedTestOutcome(result.outcome)) summary.failed++;
+      else summary.other++;
+    });
+    summary.denominator = summary.passed + summary.failed;
+    summary.passRate = D.rate(summary.passed, summary.denominator);
+    summary.failRate = D.rate(summary.failed, summary.denominator);
+    return summary;
+  };
+  D.loadSupplementalData = async function (base, cases) {
+    D.S.analyticsTrend = { status: 'loading', days: [] };
+    D.S.testResults = { status: 'loading', runs: [] };
+    await Promise.all([
+      D.loadAnalyticsTrend(cases).catch(function (error) { D.S.analyticsTrend = { status: 'error', days: [], error: String((error && error.message) || error), source: 'Analytics OData WorkItemSnapshot' }; }),
+      D.loadTestResults(base, cases).catch(function (error) {
+        cases.forEach(function (testCase) { testCase.latestResult = null; });
+        D.S.testResults = { status: 'error', runs: [], error: String((error && error.message) || error), source: 'Azure DevOps Test Runs / Results' };
+      })
+    ]);
   };
   D.collect = function (node, type, out) { out = out || []; if (node.type === type) out.push(node); (node.children || []).forEach(function (c) { D.collect(c, type, out); }); return out; };
   D.inRange = function (c) { var v = D.S.range; if (v === 'all') return true; if (!c.changed) return false; return (Date.now() - new Date(c.changed).getTime()) <= parseInt(v, 10) * 86400000; };
@@ -597,14 +787,168 @@
     });
     return wrap;
   };
+  D.testResultBadge = function (result) {
+    if (!result) return D.metricBadge('Test Result', 'No result', '#64748b');
+    var color = /^passed$/i.test(result.outcome) ? '#34d399' : (D.isFailedTestOutcome(result.outcome) ? '#fb7185' : '#fbbf24');
+    var badge = D.metricBadge('Test Result', result.outcome || 'Unspecified', color);
+    badge.title = result.runName + ' · ' + D.fmt(result.completedDate) + ' · matched by ' + result.matchMethod;
+    return badge;
+  };
+  D.analyticsLineChart = function (trend) {
+    var days = trend && trend.days || [], W = 920, H = 340, L = 52, R = 20, T = 18, B = 52;
+    var wrap = D.el('div', 'trend-scroll'), svg = D.svg('svg', { viewBox: '0 0 ' + W + ' ' + H, width: '100%', height: '340', role: 'img', 'aria-label': 'Daily Test Case counts by Azure DevOps State' });
+    wrap.appendChild(svg);
+    if (!days.length) {
+      var empty = D.svg('text', { x: W / 2, y: H / 2, fill: '#8fa3c0', 'text-anchor': 'middle', 'font-size': '14' });
+      empty.textContent = trend && trend.status === 'error' ? 'Analytics OData unavailable: ' + trend.error : 'No Analytics trend data'; svg.appendChild(empty); return wrap;
+    }
+    var stateSet = {}, max = 1;
+    days.forEach(function (day) { Object.keys(day.counts || {}).forEach(function (state) { stateSet[state] = 1; max = Math.max(max, +day.counts[state] || 0); }); });
+    var states = D.orderStates(Object.keys(stateSet)), pw = W - L - R, ph = H - T - B;
+    for (var g = 0; g <= 5; g++) {
+      var y = T + ph - ph * g / 5;
+      svg.appendChild(D.svg('line', { x1: L, y1: y, x2: L + pw, y2: y, stroke: '#1c2942', 'stroke-width': '1' }));
+      var label = D.svg('text', { x: L - 8, y: y + 4, fill: '#7d93b3', 'text-anchor': 'end', 'font-size': '10' }); label.textContent = Math.round(max * g / 5); svg.appendChild(label);
+    }
+    var every = Math.max(1, Math.ceil(days.length / 7));
+    days.forEach(function (day, index) {
+      if (index % every && index !== days.length - 1) return;
+      var x = L + (days.length === 1 ? pw / 2 : pw * index / (days.length - 1));
+      var label = D.svg('text', { x: x, y: T + ph + 20, fill: '#8fa3c0', 'text-anchor': 'middle', 'font-size': '10' }); label.textContent = day.date.slice(5); svg.appendChild(label);
+    });
+    states.forEach(function (state) {
+      var points = days.map(function (day, index) {
+        var x = L + (days.length === 1 ? pw / 2 : pw * index / (days.length - 1));
+        var value = +(day.counts[state] || 0), y = T + ph - ph * value / max;
+        return { x: x, y: y, value: value, date: day.date };
+      });
+      var polyline = D.svg('polyline', { points: points.map(function (point) { return point.x + ',' + point.y; }).join(' '), fill: 'none', stroke: D.colorFor(state), 'stroke-width': '3', 'stroke-linejoin': 'round', 'stroke-linecap': 'round' });
+      svg.appendChild(polyline);
+      points.forEach(function (point) {
+        var circle = D.svg('circle', { cx: point.x, cy: point.y, r: '3.5', fill: D.colorFor(state), tabindex: '0' });
+        var title = D.svg('title'); title.textContent = point.date + ' · ' + state + ': ' + point.value; circle.appendChild(title); svg.appendChild(circle);
+      });
+    });
+    var legend = D.el('div', 'legend'); states.forEach(function (state) { legend.appendChild(D.chip(state)); }); wrap.appendChild(legend);
+    var details = D.el('details', 'trend-table-details'), summary = D.el('summary', null, 'View accessible trend table'); details.appendChild(summary);
+    var tableWrap = D.el('div', 'table-scroll'), table = D.el('table'), thead = D.el('thead'), header = D.el('tr');
+    header.appendChild(D.el('th', null, 'Date')); states.forEach(function (state) { header.appendChild(D.el('th', 'num', state)); }); thead.appendChild(header); table.appendChild(thead);
+    var tbody = D.el('tbody'); days.forEach(function (day) { var row = D.el('tr'); row.appendChild(D.el('td', null, day.date)); states.forEach(function (state) { row.appendChild(D.el('td', 'num', String(day.counts[state] || 0))); }); tbody.appendChild(row); });
+    table.appendChild(tbody); tableWrap.appendChild(table); details.appendChild(tableWrap); wrap.appendChild(details); return wrap;
+  };
+  D.testRunsTable = function () {
+    var runs = D.S.testResults && D.S.testResults.runs || [];
+    if (!runs.length) return D.el('div', 'empty', D.S.testResults && D.S.testResults.status === 'error' ? 'Test Runs unavailable: ' + D.S.testResults.error : 'No Test Runs found in the last ' + D.CFG.testResultDays + ' days');
+    var wrap = D.el('div', 'table-scroll'), table = D.el('table'), thead = D.el('thead'), header = D.el('tr');
+    ['Run', 'Test Plan', 'State', 'Started', 'Completed', 'Results', 'API status'].forEach(function (label) { header.appendChild(D.el('th', null, label)); }); thead.appendChild(header); table.appendChild(thead);
+    var tbody = D.el('tbody'); runs.slice(0, 100).forEach(function (run) {
+      var row = D.el('tr'), runCell = D.el('td'), link = D.el('a', null, '#' + run.id + ' · ' + run.name); link.href = run.url; link.target = '_blank'; link.rel = 'noopener'; runCell.appendChild(link); row.appendChild(runCell);
+      row.appendChild(D.el('td', null, run.planName ? ((run.planId ? '#' + run.planId + ' · ' : '') + run.planName) : '-'));
+      row.appendChild(D.el('td', null, run.state || '-')); row.appendChild(D.el('td', null, D.fmt(run.startedDate))); row.appendChild(D.el('td', null, D.fmt(run.completedDate)));
+      row.appendChild(D.el('td', 'num', String(run.resultCount || 0))); row.appendChild(D.el('td', null, run.error || 'Loaded')); tbody.appendChild(row);
+    });
+    table.appendChild(tbody); wrap.appendChild(table); return wrap;
+  };
+  D.changeDetails = function (label, items, kind) {
+    var details = D.el('details', 'change-group'), summary = D.el('summary', null, label + ' (' + items.length + ')'); details.appendChild(summary);
+    if (!items.length) { details.appendChild(D.el('div', 'empty', 'No cases')); return details; }
+    var list = D.el('div', 'change-list'); items.forEach(function (item) {
+      var row = D.el('div', 'change-row'), link = D.el('a', 'caseid', '#' + item.id); link.href = D.wiUrl(item.id); link.target = '_blank'; link.rel = 'noopener'; row.appendChild(link);
+      row.appendChild(D.el('span', 'change-title', item.title || ('Case #' + item.id))); row.appendChild(D.el('span', 'small', item.rack || '-'));
+      if (kind === 'state') row.appendChild(D.el('span', 'change-state', item.beforeState + ' → ' + item.afterState));
+      else if (item.state) row.appendChild(D.chip(item.state));
+      row.appendChild(D.el('span', 'date', D.fmt(item.changed))); list.appendChild(row);
+    }); details.appendChild(list); return details;
+  };
+  D.weeklyRows = function () {
+    var comparison = D.S.snapshotComparison || {}, changedIds = {}, changeKinds = {};
+    (comparison.updatedThisWeek || []).forEach(function (item) { changedIds[item.id] = 1; });
+    (comparison.added || []).forEach(function (item) { changeKinds[item.id] = 'Added'; });
+    (comparison.removed || []).forEach(function (item) { changeKinds[item.id] = 'Removed'; });
+    (comparison.stateChanged || []).forEach(function (item) { changeKinds[item.id] = item.beforeState + ' -> ' + item.afterState; });
+    var rows = [];
+    (D.S.racks || []).forEach(function (rack) { D.collect(rack, 'Test Case').forEach(function (testCase) {
+      var result = testCase.latestResult || {}, metrics = testCase.metrics || {};
+      rows.push({ rack: rack.label, id: testCase.id, title: testCase.title, state: testCase.state, changed: D.fmt(testCase.changed), changedThisWeek: changedIds[testCase.id] ? 'Yes' : 'No', snapshotChange: changeKinds[testCase.id] || '-',
+        result: result.outcome || 'No result', resultDate: D.fmt(result.completedDate), runId: result.runId || '-', priority: D.displayFieldValue(metrics.priority), sampleSize: D.displayFieldValue(metrics.sampleSize), cycles: D.displayFieldValue(metrics.numberOfCycles), duration: D.displayFieldValue(metrics.testDuration),
+        bugs: (testCase.bugs || []).map(function (bug) { return 'BUG #' + bug.id; }).join('; ') || '-', url: D.wiUrl(testCase.id) });
+    }); }); return rows;
+  };
+  D.csvValue = function (value) { var text = String(value == null ? '' : value); return /[",\r\n]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text; };
+  D.downloadBlob = function (content, type, filename) {
+    var blob = new Blob([content], { type: type }), link = D.el('a'); link.href = URL.createObjectURL(blob); link.download = filename; document.body.appendChild(link); link.click(); link.remove(); setTimeout(function () { URL.revokeObjectURL(link.href); }, 5000);
+  };
+  D.reportStamp = function () { var now = new Date(); return now.getFullYear() + String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0'); };
+  D.exportWeeklyCsv = function () {
+    var headers = ['Rack', 'Case ID', 'Title', 'Case State', 'Changed Date', 'Changed This Week', 'Snapshot Change', 'Latest Test Result', 'Result Date', 'Test Run ID', 'Priority', 'Sample Size', 'Number of Cycles', 'Test Duration', 'Linked Bugs', 'Azure DevOps URL'];
+    var keys = ['rack', 'id', 'title', 'state', 'changed', 'changedThisWeek', 'snapshotChange', 'result', 'resultDate', 'runId', 'priority', 'sampleSize', 'cycles', 'duration', 'bugs', 'url'];
+    var lines = [headers.map(D.csvValue).join(',')]; D.weeklyRows().forEach(function (row) { lines.push(keys.map(function (key) { return D.csvValue(row[key]); }).join(',')); });
+    D.downloadBlob('\ufeff' + lines.join('\r\n'), 'text/csv;charset=utf-8', 'C4143-Weekly-Report-' + D.reportStamp() + '.csv'); D.setStatus('Downloaded weekly CSV report with ' + (lines.length - 1) + ' case rows.', 'info');
+  };
+  D.excelWorksheet = function (name, headers, rows) {
+    var xml = '<Worksheet ss:Name="' + D.xmlEsc(name) + '"><Table ss:ExpandedColumnCount="' + headers.length + '" ss:ExpandedRowCount="' + (rows.length + 1) + '" x:FullColumns="1" x:FullRows="1"><Row>';
+    headers.forEach(function (header) { xml += D.excelCell(header, 'Header'); }); xml += '</Row>';
+    rows.forEach(function (row) { xml += '<Row>'; row.forEach(function (cell) { xml += D.excelCell(cell && cell.value != null ? cell.value : cell, cell && cell.href ? 'Link' : 'Text', false, cell && cell.href); }); xml += '</Row>'; });
+    return xml + '</Table><WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel"><FreezePanes/><FrozenNoSplit/><SplitHorizontal>1</SplitHorizontal><TopRowBottomPane>1</TopRowBottomPane></WorksheetOptions><AutoFilter x:Range="R1C1:R' + (rows.length + 1) + 'C' + headers.length + '" xmlns="urn:schemas-microsoft-com:office:excel"/></Worksheet>';
+  };
+  D.weeklyExcelXml = function () {
+    var caseHeaders = ['Rack', 'Case ID', 'Title', 'Case State', 'Changed Date', 'Changed This Week', 'Snapshot Change', 'Latest Test Result', 'Result Date', 'Test Run ID', 'Priority', 'Sample Size', 'Number of Cycles', 'Test Duration', 'Linked Bugs', 'Azure DevOps URL'];
+    var caseRows = D.weeklyRows().map(function (row) { return [row.rack, { value: row.id, href: row.url }, row.title, row.state, row.changed, row.changedThisWeek, row.snapshotChange, row.result, row.resultDate, row.runId, row.priority, row.sampleSize, row.cycles, row.duration, row.bugs, { value: row.url, href: row.url }]; });
+    var runHeaders = ['Run ID', 'Name', 'Test Plan ID', 'Test Plan', 'State', 'Started', 'Completed', 'Result Count', 'Status', 'URL'];
+    var runRows = (D.S.testResults.runs || []).map(function (run) { return [{ value: run.id, href: run.url }, run.name, run.planId || '-', run.planName || '-', run.state, D.fmt(run.startedDate), D.fmt(run.completedDate), run.resultCount, run.error || 'Loaded', { value: run.url, href: run.url }]; });
+    var trend = D.S.analyticsTrend && D.S.analyticsTrend.days || [], states = {}, trendRows = [];
+    trend.forEach(function (day) { Object.keys(day.counts || {}).forEach(function (state) { states[state] = 1; }); }); var stateList = D.orderStates(Object.keys(states));
+    trend.forEach(function (day) { trendRows.push([day.date].concat(stateList.map(function (state) { return day.counts[state] || 0; }))); });
+    var comparison = D.S.snapshotComparison || {}, changeRows = [];
+    [['Added', comparison.added || []], ['Removed', comparison.removed || []], ['State changed', comparison.stateChanged || []], ['Updated this week', comparison.updatedThisWeek || []]].forEach(function (group) { group[1].forEach(function (item) { changeRows.push([group[0], { value: item.id, href: D.wiUrl(item.id) }, item.title, item.rack, item.beforeState || '-', item.afterState || item.state || '-', D.fmt(item.changed)]); }); });
+    var xml = '<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">'
+      + '<Styles><Style ss:ID="Default" ss:Name="Normal"><Alignment ss:Vertical="Top" ss:WrapText="1"/><Font ss:FontName="Segoe UI" ss:Size="10"/></Style><Style ss:ID="Header"><Font ss:Bold="1" ss:Color="#FFFFFF"/><Interior ss:Color="#132039" ss:Pattern="Solid"/></Style><Style ss:ID="Text"/><Style ss:ID="Link"><Font ss:Color="#0563C1" ss:Underline="Single"/></Style></Styles>';
+    xml += D.excelWorksheet('Weekly Cases', caseHeaders, caseRows) + D.excelWorksheet('Test Runs', runHeaders, runRows)
+      + D.excelWorksheet('State Trend', ['Date'].concat(stateList), trendRows) + D.excelWorksheet('Snapshot Changes', ['Change', 'Case ID', 'Title', 'Rack', 'Before', 'After', 'Changed'], changeRows) + '</Workbook>';
+    return { xml: xml, count: caseRows.length };
+  };
+  D.exportWeeklyExcel = function () { var report = D.weeklyExcelXml(); D.downloadBlob(report.xml, 'application/vnd.ms-excel;charset=utf-8', 'C4143-Weekly-Report-' + D.reportStamp() + '.xls'); D.setStatus('Downloaded weekly Excel workbook with ' + report.count + ' case rows and four worksheets.', 'info'); };
+  D.insightsPanel = function () {
+    var wrap = D.el('div'), cases = D.allCases(), test = D.S.testResults || { status: 'idle', runs: [] }, summary = test.summary || D.testResultSummary(cases), comparison = D.S.snapshotComparison || { status: 'first', added: [], removed: [], stateChanged: [], updatedThisWeek: [] };
+    var sticky = D.el('div', 'panel-sticky'), cards = D.el('div', 'cards');
+    var resultAvailable = test.status === 'ok';
+    [D.card('ANALYTICS DAYS', D.S.analyticsTrend && D.S.analyticsTrend.status === 'ok' ? D.S.analyticsTrend.days.length : 'Unavailable', '#38bdf8'),
+      D.card('RESULTS / CASES', resultAvailable ? summary.matched + ' / ' + summary.cases : 'Unavailable', '#60a5fa'),
+      D.card('RESULT PASSED / RATE', resultAvailable ? D.outcomeValue(summary.passed, summary.passRate) : 'Unavailable', '#34d399'),
+      D.card('RESULT FAILED / RATE', resultAvailable ? D.outcomeValue(summary.failed, summary.failRate) : 'Unavailable', '#fb7185'),
+      D.card('NO TEST RESULT', resultAvailable ? summary.noResult : 'Unavailable', '#fbbf24'),
+      D.card('UPDATED THIS WEEK', (comparison.updatedThisWeek || []).length, '#c084fc')].forEach(function (card) { cards.appendChild(card); });
+    sticky.appendChild(cards); wrap.appendChild(sticky);
+    var toolbar = D.el('div', 'insights-toolbar'), csv = D.el('button', 'primary', 'Download weekly CSV'), excel = D.el('button', 'primary', 'Download weekly Excel (.xls)');
+    csv.addEventListener('click', D.exportWeeklyCsv); excel.addEventListener('click', D.exportWeeklyExcel); toolbar.appendChild(csv); toolbar.appendChild(excel); toolbar.appendChild(D.el('span', 'small', 'Reports include all Racks, latest Test Result, weekly changes, metrics, Bugs and hyperlinks.')); wrap.appendChild(toolbar);
+    var trendBox = D.box('Daily Test Case State trend — Analytics OData WorkItemSnapshot (30 days)'); trendBox.appendChild(D.analyticsLineChart(D.S.analyticsTrend)); wrap.appendChild(trendBox);
+    var resultGrid = D.el('div', 'grid'), resultBox = D.box('Real Pass / Fail — latest Test Result per Case');
+    resultBox.appendChild(D.el('div', 'metric-total', resultAvailable ? ('Denominator: ' + summary.denominator + ' latest decisive results · ' + summary.other + ' other outcomes · ' + summary.noResult + ' cases without a result') : ('Unavailable: ' + (test.error || 'not loaded'))));
+    resultBox.appendChild(D.horizontalBarChart('Latest Test Results', [
+      { label: 'Passed', valueText: summary.passed + ' · ' + summary.passRate, percent: summary.denominator ? summary.passed * 100 / summary.denominator : 0, items: [], color: '#34d399' },
+      { label: 'Failed', valueText: summary.failed + ' · ' + summary.failRate, percent: summary.denominator ? summary.failed * 100 / summary.denominator : 0, items: [], color: '#fb7185' },
+      { label: 'Other outcome', valueText: String(summary.other), percent: summary.cases ? summary.other * 100 / summary.cases : 0, items: [], color: '#fbbf24' },
+      { label: 'No result', valueText: String(summary.noResult), percent: summary.cases ? summary.noResult * 100 / summary.cases : 0, items: [], color: '#64748b' }
+    ]));
+    var changesBox = D.box('Changes since previous snapshot');
+    changesBox.appendChild(D.el('div', 'small', comparison.status === 'first' ? 'First snapshot captured. State comparison becomes available after the next successful query.' : 'Previous: ' + D.fmt(comparison.previousAt) + ' · Current: ' + D.fmt(comparison.currentAt)));
+    changesBox.appendChild(D.changeDetails('Updated in the last 7 days', comparison.updatedThisWeek || [], 'updated'));
+    changesBox.appendChild(D.changeDetails('State changed', comparison.stateChanged || [], 'state'));
+    changesBox.appendChild(D.changeDetails('Added', comparison.added || [], 'added')); changesBox.appendChild(D.changeDetails('Removed', comparison.removed || [], 'removed'));
+    resultGrid.appendChild(resultBox); resultGrid.appendChild(changesBox); wrap.appendChild(resultGrid);
+    var runsBox = D.box('Azure DevOps Test Runs / Test Plans — last ' + D.CFG.testResultDays + ' days');
+    if (test.testPlanWarning) runsBox.appendChild(D.el('div', 'empty', 'Test Plan names unavailable: ' + test.testPlanWarning + '. Test Run and Result data is still shown.'));
+    runsBox.appendChild(D.testRunsTable()); wrap.appendChild(runsBox); return wrap;
+  };
   D.CSS = "*{box-sizing:border-box}\nbody{margin:0;font-family:\"Segoe UI\",Roboto,\"Noto Sans TC\",\"Microsoft JhengHei\",sans-serif;background:#0b1220;color:#e2e8f0;font-size:14px}\na{color:#7dd3fc;text-decoration:none}a:hover{text-decoration:underline}\nheader{padding:14px 20px;background:linear-gradient(90deg,#132039,#0d1729);border-bottom:1px solid #1e2b45;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}\nh1{font-size:18px;margin:0 0 4px}\n.sub{font-size:12px;color:#8fa3c0}\n.controls{display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:10px 20px;background:#0e1830;border-bottom:1px solid #1e2b45;position:sticky;top:0;z-index:20}\n.controls label{font-size:12px;color:#9fb3d0;display:flex;gap:6px;align-items:center}\nselect,button,input{background:#16243d;color:#e2e8f0;border:1px solid #27395c;border-radius:6px;padding:6px 10px;font-size:13px;font-family:inherit}\nbutton{cursor:pointer}button:hover{background:#1e3a5f}\nbutton.primary{background:#2563eb;border-color:#2563eb}button.primary:hover{background:#1d4ed8}\n.tabs{display:flex;flex-wrap:wrap;gap:4px;padding:10px 20px 0}\n.tab{padding:8px 16px;border-radius:8px 8px 0 0;background:#111d33;border:1px solid #1e2b45;border-bottom:none;color:#9fb3d0;cursor:pointer;font-size:13px}\n.tab.active{background:#16243d;color:#fff;font-weight:600;box-shadow:inset 0 3px 0 #38bdf8}\n.panel{display:none;padding:16px 20px 60px}.panel.active{display:block}\n.cards{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:14px;align-items:center}\n.card{background:#111d33;border:1px solid #1e2b45;border-radius:10px;padding:10px 16px;min-width:110px}\n.card .k{font-size:10px;color:#8fa3c0;letter-spacing:.05em}\n.card .v{font-size:22px;font-weight:700;margin-top:2px}\n.grid{display:grid;grid-template-columns:minmax(300px,1fr) minmax(320px,1.15fr);gap:14px;margin-bottom:16px}\n@media(max-width:980px){.grid{grid-template-columns:1fr}}\n.box{background:#111d33;border:1px solid #1e2b45;border-radius:10px;padding:14px}\n.box h3{margin:0 0 10px;font-size:12px;color:#cbd8ea;letter-spacing:.05em;text-transform:uppercase}\n.chartwrap{height:300px}\n.legend{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;justify-content:center}\ntable{width:100%;border-collapse:collapse;font-size:13px}\nth,td{text-align:left;padding:6px 8px;border-bottom:1px solid #1c2942}\nth{color:#8fa3c0;font-size:10px;text-transform:uppercase;letter-spacing:.05em}\ntr.total td{font-weight:700;border-top:2px solid #27395c;border-bottom:none}\ntd.num,th.num{text-align:right;font-variant-numeric:tabular-nums}\n.chip{display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;white-space:nowrap;color:#0b1220}\n.bar{height:8px;border-radius:4px;background:#1c2942;overflow:hidden;display:flex;min-width:70px}\ndetails.node{border:1px solid #1c2942;border-radius:8px;margin:6px 0;background:#0f1a2e}\ndetails.node[open]{background:#101d33}\ndetails.node>summary{cursor:pointer;padding:8px 12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;list-style:none}\ndetails.node>summary::-webkit-details-marker{display:none}\ndetails.node>summary:before{content:\"\\25B8\";color:#5b7ba6;font-size:12px;transition:transform .15s}\ndetails.node[open]>summary:before{transform:rotate(90deg)}\ndetails.node>summary:hover{background:#152341}\n.nodebody{padding:2px 10px 10px 24px}\n.ntitle{font-weight:600}\n.lvl1>summary>.ntitle{color:#f0f6ff;font-size:14px}\n.lvl2>summary>.ntitle{color:#cfe3ff;font-size:13px}\n.lvl3>summary>.ntitle{color:#b7cdea;font-size:12.5px;font-weight:500}\n.type{font-size:10px;color:#7d93b3;border:1px solid #27395c;border-radius:4px;padding:1px 5px}\n.spacer{flex:1}\n.caserow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:6px 10px;border-bottom:1px dashed #1c2942;font-size:13px}\n.caserow:hover{background:#152341}\n.caseid{font-family:Consolas,monospace;font-size:12px;color:#7dd3fc;min-width:64px}\n.casetitle{flex:1;min-width:200px;color:#d7e3f4}\n.date{font-size:11px;color:#7d93b3;font-variant-numeric:tabular-nums}\n.banner{margin:10px 20px;padding:10px 14px;border-radius:8px;font-size:13px;border:1px solid}\n.banner.info{background:#10233d;border-color:#27507f;color:#bcd9ff}\n.banner.warn{background:#3a2a10;border-color:#7a5a1c;color:#ffd9a0}\n.banner.err{background:#3a1620;border-color:#7f2740;color:#ffc2cf}\n.hide{display:none!important}\n.small{font-size:11px;color:#8fa3c0}\n.empty{padding:14px;text-align:center;color:#8fa3c0;font-size:13px}";
   D.CSS += "\n.type-badge{font-weight:700;letter-spacing:.02em}\n.colour-key{display:inline-flex;flex-wrap:wrap;gap:5px;align-items:center;padding-left:8px;border-left:1px solid #27395c}\n.tab{font-size:14px;padding:10px 18px;min-height:40px}\n.banner{position:fixed;right:20px;bottom:20px;z-index:100;max-width:min(680px,calc(100vw - 40px));margin:0;padding:11px 14px;box-shadow:0 14px 36px rgba(0,0,0,.38);opacity:1;transform:translateY(0);transition:opacity .7s ease,transform .7s ease;pointer-events:auto}\n.banner.fading{opacity:0;transform:translateY(10px);pointer-events:none}\n.cards{display:flex;flex-wrap:nowrap;gap:12px;width:100%;align-items:stretch;overflow-x:auto;scrollbar-width:thin}\n.cards>.card{flex:1 0 118px;width:auto;min-width:118px;max-width:none;overflow:hidden;padding-left:12px;padding-right:12px}\n.card{position:relative;transition:transform .15s,filter .15s}\n.card:hover{transform:translateY(-2px);filter:brightness(1.12)}\n.card .k{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\n.card .v{white-space:nowrap;overflow:visible;text-overflow:clip;font-variant-numeric:tabular-nums;line-height:1.2;min-height:28px;display:flex;align-items:center}\n.tree-toolbar{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;width:66.6667%;max-width:100%;margin-bottom:14px;align-items:center}\n.tree-toolbar>button,.tree-toolbar>input{width:100%;min-width:0}\n.bug-link{display:inline-flex;align-items:center;border:1px solid rgba(248,113,113,.72);border-radius:999px;padding:2px 8px;background:rgba(248,113,113,.14);color:#fecaca;font-size:11px;font-weight:700;white-space:nowrap}\n.bug-link:hover{background:rgba(248,113,113,.25);color:#fff;text-decoration:none}\n.caserow{margin:3px 0;border-radius:6px;border-bottom-color:transparent;transition:filter .15s,transform .15s}\n.caserow:hover{filter:brightness(1.18);transform:translateX(2px)}\ndetails.node{overflow:hidden;transition:filter .15s,border-color .15s}\ndetails.node:hover{filter:brightness(1.08)}\n@media(max-width:720px){.tab{font-size:14px;padding:9px 14px;min-height:38px;flex:1 1 auto}.banner{right:12px;bottom:12px;max-width:calc(100vw - 24px)}.colour-key{width:100%;padding:6px 0 0;border-left:0;border-top:1px solid #27395c}.casetitle{min-width:150px}.tree-toolbar{width:100%;grid-template-columns:repeat(2,minmax(0,1fr))}.tree-toolbar>input{grid-column:1/-1}}";
   D.CSS += "\n.tab{font-size:18px;padding:10px 29px;min-height:42px}\n.metric-badge{display:inline-flex;align-items:center;border:1px solid;border-radius:5px;padding:2px 6px;font-size:10.5px;font-weight:700;white-space:nowrap}\n.metric-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:10px 0 14px}\n.metric-section{min-width:0;padding:10px;border:1px solid #1c2942;border-radius:8px;background:#0f1a2e;overflow-x:auto}\n.metric-section h4{margin:0 0 8px;color:#cfe3ff;font-size:12px}\n.metric-total{font-size:12px;color:#bcd9ff;margin:2px 0 8px;font-weight:700}\n.case-links{display:inline;line-height:1.8}\n@media(max-width:980px){.metric-grid{grid-template-columns:1fr}}\n@media(max-width:720px){.tab{font-size:16px;padding:9px 18px;min-height:40px}}";
   D.CSS += "\n.metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}\n.metric-stack{display:grid;gap:12px;align-content:start;min-width:0}\n.metric-section{overflow:hidden}\n.hbar-list{display:grid;gap:10px}\n.hbar-row{padding:9px 10px;border:1px solid #1c2942;border-radius:8px;background:#111d33}\n.hbar-row.total{border-color:#2d527d;background:#12223b}\n.hbar-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:6px}\n.hbar-label{min-width:0;color:#dbeafe;font-size:12px;font-weight:700;overflow-wrap:anywhere}\n.hbar-value{flex:none;color:#a9bdd8;font-size:11px;font-variant-numeric:tabular-nums;text-align:right}\n.hbar-track{height:12px;border-radius:999px;background:#1c2942;overflow:hidden}\n.hbar-fill{height:100%;border-radius:inherit;transition:width .25s ease}\n.hbar-details{margin-top:5px;color:#8fa3c0;font-size:11px}\n.hbar-details>summary{display:flex;align-items:center;min-height:32px;width:max-content;max-width:100%;cursor:pointer;color:#7dd3fc;font-weight:600;list-style:none}\n.hbar-details>summary::-webkit-details-marker{display:none}\n.hbar-details>summary:before{content:'\\25B8';margin-right:5px;color:#5b7ba6;transition:transform .15s}\n.hbar-details[open]>summary:before{transform:rotate(90deg)}\n.hbar-details>summary:hover{color:#bae6fd}\n.hbar-details>summary:focus-visible{outline:2px solid #38bdf8;outline-offset:2px;border-radius:4px}\n.hbar-links{display:flex;flex-wrap:wrap;gap:6px;padding:4px 0 2px 16px}\n@media(max-width:980px){.metric-grid{grid-template-columns:1fr}}\n@media(max-width:720px){.hbar-head{align-items:flex-start;flex-direction:column;gap:3px}.hbar-value{text-align:left}.hbar-row{padding:9px}.hbar-details>summary{min-height:40px}.hbar-links{padding-left:8px}}";
   D.CSS += "\n.bug-detail-scroll{max-width:100%;overflow-x:auto;margin-top:8px}\n.bug-detail-scroll>table{min-width:640px}";
-  D.CSS += "\n.suite-intro{margin:0 0 12px;color:#9fb3d0;font-size:12px}\n.suite-toolbar{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;width:min(980px,100%);margin-bottom:14px}\n.suite-toolbar>*{width:100%;min-width:0}\n.feature-groups{display:grid;gap:8px}\ndetails.feature-group{min-width:0;border:1px solid #253858;border-radius:9px;background:#0f1a2e;overflow:hidden}\ndetails.feature-group[open]{border-color:#35618f;background:#101d33}\n.feature-summary{display:flex;align-items:center;gap:8px;padding:11px 13px;cursor:pointer;list-style:none}\n.feature-summary::-webkit-details-marker{display:none}\n.feature-summary:before{content:'\\25B8';color:#7dd3fc;transition:transform .15s}\ndetails.feature-group[open]>.feature-summary:before{transform:rotate(90deg)}\n.feature-summary:hover{background:#152744}\n.feature-group-name{color:#e0f2fe;font-size:15px;font-weight:700}\n.suite-pill{display:inline-flex;padding:2px 8px;border-radius:999px;background:#193657;color:#bae6fd;border:1px solid #2d527d;font-size:11px;font-weight:700}\n.feature-group-body{padding:0 12px 12px 28px}\n.feature-table-scroll{max-width:100%;overflow:auto;border:1px solid #1c2942;border-radius:7px}\ntable.feature-table{min-width:1320px;background:#0c1729}\n.feature-table th{position:sticky;top:0;background:#132039;z-index:1}\n.feature-table td{vertical-align:top;line-height:1.4}\n.feature-table .feature-id{width:86px;font-family:Consolas,monospace}\n.feature-table .feature-title{min-width:420px;color:#d7e3f4}\n.feature-table .feature-owner{min-width:150px}\n.feature-table .feature-comments{min-width:240px;max-width:420px;white-space:normal;overflow-wrap:anywhere}\n.feature-case-row{border-left:3px solid transparent}\n.feature-case-row:hover{background:#152341}\n.feature-bugs{min-width:160px}\n.feature-bugs .bug-link{margin:1px 4px 1px 0}\n@media(max-width:720px){.suite-toolbar{grid-template-columns:repeat(2,minmax(0,1fr))}.suite-toolbar>input{grid-column:1/-1}.feature-group-body{padding-left:10px}.feature-summary{padding:12px 10px}}";
+  D.CSS += "\n.suite-intro{margin:0 0 12px;color:#9fb3d0;font-size:12px}\n.suite-toolbar{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;width:min(980px,100%);margin-bottom:14px}\n.suite-toolbar>*{width:100%;min-width:0}\n.feature-groups{display:grid;gap:8px}\ndetails.feature-group{min-width:0;border:1px solid #253858;border-radius:9px;background:#0f1a2e;overflow:hidden}\ndetails.feature-group[open]{border-color:#35618f;background:#101d33}\n.feature-summary{display:flex;align-items:center;gap:8px;padding:11px 13px;cursor:pointer;list-style:none}\n.feature-summary::-webkit-details-marker{display:none}\n.feature-summary:before{content:'\\25B8';color:#7dd3fc;transition:transform .15s}\ndetails.feature-group[open]>.feature-summary:before{transform:rotate(90deg)}\n.feature-summary:hover{background:#152744}\n.feature-group-name{color:#e0f2fe;font-size:15px;font-weight:700}\n.suite-pill{display:inline-flex;padding:2px 8px;border-radius:999px;background:#193657;color:#bae6fd;border:1px solid #2d527d;font-size:11px;font-weight:700}\n.feature-group-body{padding:0 12px 12px 28px}\n.feature-table-scroll{max-width:100%;overflow:auto;border:1px solid #1c2942;border-radius:7px}\ntable.feature-table{min-width:1480px;background:#0c1729}\n.feature-table th{position:sticky;top:0;background:#132039;z-index:1}\n.feature-table td{vertical-align:top;line-height:1.4}\n.feature-table .feature-id{width:86px;font-family:Consolas,monospace}\n.feature-table .feature-title{min-width:420px;color:#d7e3f4}\n.feature-table .feature-owner{min-width:150px}\n.feature-table .feature-comments{min-width:240px;max-width:420px;white-space:normal;overflow-wrap:anywhere}\n.feature-case-row{border-left:3px solid transparent}\n.feature-case-row:hover{background:#152341}\n.feature-bugs{min-width:160px}\n.feature-bugs .bug-link{margin:1px 4px 1px 0}\n@media(max-width:720px){.suite-toolbar{grid-template-columns:repeat(2,minmax(0,1fr))}.suite-toolbar>input{grid-column:1/-1}.feature-group-body{padding-left:10px}.feature-summary{padding:12px 10px}}";
   D.CSS += "\n.dashboard-main{display:grid;grid-template-columns:64px minmax(0,1fr);align-items:start;min-width:0}\n#panels{min-width:0}\n.tabs{display:flex;flex-direction:column;flex-wrap:nowrap;align-items:center;gap:4px;width:64px;min-width:64px;padding:10px 6px 60px 8px}\n.tab{display:flex;align-items:center;justify-content:center;flex:0 0 auto;width:50px;min-width:50px;max-width:50px;min-height:72px;height:auto;padding:8px 5px;border:1px solid #1e2b45;border-radius:6px;background:#111d33;color:#9fb3d0;writing-mode:vertical-rl;text-orientation:mixed;white-space:nowrap;font-size:11px;line-height:1.1}\n.tab.active{background:#16243d;color:#fff;font-weight:600;box-shadow:inset 3px 0 0 #38bdf8}\n.panel{min-width:0;padding:16px 20px 60px 14px}\n@media(max-width:720px){.dashboard-main{grid-template-columns:54px minmax(0,1fr)}.tabs{width:54px;min-width:54px;padding:8px 4px 40px}.tab{width:44px;min-width:44px;max-width:44px;min-height:66px;padding:7px 4px;font-size:10px}.panel{padding:12px 10px 50px 8px}}";
   D.CSS += "\n:root{--dvdash-controls-height:52px}\n.tabs{position:sticky;top:calc(var(--dvdash-controls-height) + 8px);align-self:start;z-index:12;max-height:calc(100vh - var(--dvdash-controls-height) - 16px);overflow-y:auto;scrollbar-width:thin}\n.panel-sticky,.suite-sticky{position:sticky;top:var(--dvdash-controls-height);z-index:11;background:#0b1220;padding-top:8px;padding-bottom:12px;box-shadow:0 12px 18px rgba(3,8,18,.42)}\n.panel-sticky>.cards,.suite-sticky>.cards{margin-bottom:0}\n@media(max-width:980px), (max-height:700px){.panel-sticky,.suite-sticky{position:static;box-shadow:none;padding-top:0}}\n@media(max-width:720px){.tabs{top:calc(var(--dvdash-controls-height) + 6px);max-height:calc(100vh - var(--dvdash-controls-height) - 12px)}}";
+  D.CSS += "\n.insights-toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:4px 0 14px}.trend-scroll{max-width:100%;overflow-x:auto}.trend-scroll>svg{min-width:720px}.trend-table-details,.change-group{margin-top:10px;border-top:1px solid #1c2942;padding-top:6px}.trend-table-details>summary,.change-group>summary{cursor:pointer;color:#7dd3fc;font-size:12px;font-weight:600;min-height:32px;display:flex;align-items:center}.table-scroll{max-width:100%;overflow:auto}.table-scroll>table{min-width:760px}.change-list{display:grid;gap:5px;padding:5px 0}.change-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:7px 8px;border:1px solid #1c2942;border-radius:7px;background:#0f1a2e}.change-title{flex:1;min-width:220px;color:#d7e3f4}.change-state{font-size:11px;color:#f8d4a2;font-weight:700}.result-link{white-space:nowrap}@media(max-width:720px){.insights-toolbar>*{width:100%}.trend-scroll>svg{min-width:660px}.change-title{min-width:150px}}";
   D.card = function (k, v, tone) {
     var c = D.el('div', 'card');
     if (tone) {
@@ -625,14 +969,6 @@
         value.style.fontSize = size + 'px';
       }
     });
-  };
-  D.setCoverageCard = function (card, actual, expected) {
-    var complete = actual === expected, tone = complete ? '#34d399' : '#fb7185';
-    card._val.textContent = actual + ' / ' + expected;
-    card.style.borderLeft = '4px solid ' + tone;
-    card.style.background = 'linear-gradient(135deg,' + D.rgba(tone, .17) + ',rgba(17,29,51,.98) 68%)';
-    card.title = complete ? ('Query coverage complete: ' + actual + ' of ' + expected + ' expected Test Cases.')
-      : ('Query coverage mismatch: returned ' + actual + ' of ' + expected + ' expected Test Cases (' + Math.abs(expected - actual) + (actual < expected ? ' missing).' : ' extra).'));
   };
   D.box = function (title) { var b = D.el('div', 'box'); if (title) b.appendChild(D.el('h3', null, title)); return b; };
   D.bugTable = function (cases) {
@@ -703,6 +1039,7 @@
     row.appendChild(D.typeBadge(n.type || 'Test Case'));
     row.appendChild(D.el('span', 'casetitle', n.title));
     row.appendChild(D.chip(n.state));
+    row.appendChild(D.testResultBadge(n.latestResult));
     var metrics = n.metrics || {};
     if (D.hasMetric(metrics.priority)) row.appendChild(D.metricBadge('Priority', 'P' + (D.priorityLevel(metrics.priority) || metrics.priority), '#c084fc'));
     if (D.hasMetric(metrics.sampleSize)) row.appendChild(D.metricBadge('Sample', metrics.sampleSize, '#38bdf8'));
@@ -739,7 +1076,8 @@
       var n = row._case;
       var bugText = (n.bugs || []).map(function (bug) { return ' bug #' + bug.id + ' ' + bug.title + ' ' + bug.state; }).join('');
       var metricText = Object.keys(n.metrics || {}).map(function (key) { return ' ' + key + ' ' + n.metrics[key]; }).join('');
-      var hit = !text || (n.title + ' #' + n.id + ' ' + n.state + bugText + metricText).toLowerCase().indexOf(text) >= 0;
+      var resultText = n.latestResult ? (' test result ' + n.latestResult.outcome + ' run ' + n.latestResult.runId + ' ' + n.latestResult.runName) : ' no test result';
+      var hit = !text || (n.title + ' #' + n.id + ' ' + n.state + bugText + metricText + resultText).toLowerCase().indexOf(text) >= 0;
       row.classList.toggle('hide', !hit);
     });
     var ds = panel.querySelectorAll('details.node');
@@ -834,7 +1172,7 @@
   D.featureCaseTable = function (entries, featureName) {
     var scroll = D.el('div', 'feature-table-scroll');
     var table = D.el('table', 'feature-table'), thead = D.el('thead'), header = D.el('tr');
-    ['ID', 'Title', 'State', 'Changed', 'Priority', 'Sample Size', 'Cycles', 'Duration', 'Script type', 'CRC SDK', 'IGS Owner', 'Linked Bugs', 'Comments'].forEach(function (label) { header.appendChild(D.el('th', null, label)); });
+    ['ID', 'Title', 'State', 'Latest Test Result', 'Changed', 'Priority', 'Sample Size', 'Cycles', 'Duration', 'Script type', 'CRC SDK', 'IGS Owner', 'Linked Bugs', 'Comments'].forEach(function (label) { header.appendChild(D.el('th', null, label)); });
     thead.appendChild(header); table.appendChild(thead);
     var tbody = D.el('tbody');
     entries.forEach(function (entry) {
@@ -845,6 +1183,10 @@
       idLink.href = D.wiUrl(testCase.id); idLink.target = '_blank'; idLink.rel = 'noopener'; idCell.appendChild(idLink); row.appendChild(idCell);
       row.appendChild(D.el('td', 'feature-title', testCase.title));
       var stateCell = D.el('td'); stateCell.appendChild(D.chip(testCase.state)); row.appendChild(stateCell);
+      var resultCell = D.el('td', 'result-link');
+      if (testCase.latestResult) { var resultLink = D.el('a', null, testCase.latestResult.outcome + ' · Run #' + testCase.latestResult.runId); resultLink.href = testCase.latestResult.runUrl; resultLink.target = '_blank'; resultLink.rel = 'noopener'; resultCell.appendChild(resultLink); }
+      else resultCell.textContent = 'No result';
+      row.appendChild(resultCell);
       row.appendChild(D.el('td', null, D.fmt(testCase.changed)));
       var priority = D.priorityLevel(metrics.priority);
       row.appendChild(D.el('td', null, D.hasMetric(metrics.priority) ? (priority ? 'P' + priority : D.displayFieldValue(metrics.priority)) : '-'));
@@ -860,7 +1202,7 @@
       row.appendChild(bugs);
       var comments = D.displayFieldValue(fields.comments), commentsCell = D.el('td', 'feature-comments', comments);
       commentsCell.title = comments === '-' ? '' : comments; row.appendChild(commentsCell);
-      row._featureSearch = [testCase.id, testCase.title, featureName, entry.rack.label, testCase.state, metrics.priority,
+      row._featureSearch = [testCase.id, testCase.title, featureName, entry.rack.label, testCase.state, testCase.latestResult && testCase.latestResult.outcome, testCase.latestResult && testCase.latestResult.runId, metrics.priority,
         metrics.sampleSize, metrics.numberOfCycles, metrics.testDuration, D.fmt(testCase.changed),
         (testCase.bugs || []).map(function (bug) { return 'BUG #' + bug.id + ' ' + bug.title + ' ' + bug.state; }).join(' '),
         D.displayFieldValue(fields.scriptType), D.displayFieldValue(fields.crcSdk), D.displayFieldValue(fields.igsOwner), comments].join(' ').toLowerCase();
@@ -876,7 +1218,7 @@
     var sticky = D.el('div', 'suite-sticky'), cards = D.el('div', 'cards');
     [
       D.card('RACK 1 TEST FEATURES', groups.filter(function (group) { return group.name !== 'Unmapped'; }).length, '#38bdf8'),
-      D.card('RACK 1 CASES / EXPECTED', rackCaseCount + ' / ' + D.EXPECTED.casesPerRack, rackCaseCount === D.EXPECTED.casesPerRack ? '#34d399' : '#fb7185'),
+      D.card('RACK 1 CASES', rackCaseCount, '#34d399'),
       D.card('LISTED / RACK 1 CASES', allEntries.length + ' / ' + rackCaseCount, allEntries.length === rackCaseCount ? '#34d399' : '#fb7185'),
       D.card('UNMAPPED CASES', unmapped, unmapped ? '#fb7185' : '#2dd4bf')
     ].forEach(function (card) { cards.appendChild(card); });
@@ -1035,7 +1377,7 @@
     tabsBar.innerHTML = ''; host.innerHTML = ''; D.S.panels = [];
     var defs = [{ kind: 'ov', label: 'Overview (' + D.S.racks.length + ' Racks)' }]
       .concat(D.S.racks.map(function (r) { return { kind: 'rack', label: r.label, rack: r }; }))
-      .concat([{ kind: 'suite', label: 'Test Features' }]);
+      .concat([{ kind: 'insights', label: 'Insights' }, { kind: 'suite', label: 'Test Features' }]);
     defs.forEach(function (def, idx) {
       var tab = D.el('button', 'tab' + (idx === D.S.active ? ' active' : ''), def.label);
       tab.setAttribute('role', 'tab'); tab.setAttribute('aria-selected', idx === D.S.active ? 'true' : 'false');
@@ -1049,7 +1391,7 @@
         refs.cRacks = D.card('RACKS', D.S.racks.length, '#38bdf8');
         refs.cFeat = D.card('FEATURES', 0, '#c084fc');
         refs.cReq = D.card('SYSTEM REQS', 0, '#fbbf24');
-        refs.cCase = D.card('TOTAL TEST CASES / EXPECTED', '-', '#34d399');
+        refs.cCase = D.card('TOTAL TEST CASES', '-', '#34d399');
         refs.cFiltered = D.card('UPDATED IN RANGE', 0, '#60a5fa');
         refs.cPass = D.card('PASS CASES / RATE', '-', '#2dd4bf');
         refs.cFail = D.card('FAIL CASES (BLOCKED) / RATE', '-', '#fb7185');
@@ -1080,7 +1422,7 @@
       } else if (def.kind === 'rack') {
         refs.cFeat = D.card('FEATURES', 0, '#c084fc');
         refs.cReq = D.card('SYSTEM REQS', 0, '#fbbf24');
-        refs.cCase = D.card('TEST CASES / EXPECTED', '-', '#34d399');
+        refs.cCase = D.card('TEST CASES', '-', '#34d399');
         refs.cFiltered = D.card('UPDATED IN RANGE', 0, '#60a5fa');
         refs.cBugs = D.card('LINKED BUGS', 0, '#f87171');
         refs.cBugs.title = 'Unique Bug work items linked from Test Cases in this Rack.';
@@ -1108,6 +1450,9 @@
         var treeHost = D.el('div');
         (def.rack.children || []).forEach(function (c) { treeHost.appendChild(D.tree(c, 1)); });
         tb.appendChild(treeHost); panel.appendChild(tb);
+      } else if (def.kind === 'insights') {
+        refs.insightsHost = D.insightsPanel();
+        panel.appendChild(refs.insightsHost);
       } else {
         refs.suiteHost = D.suitePanel();
         panel.appendChild(refs.suiteHost);
@@ -1140,7 +1485,7 @@
         var outcomes = D.outcomeSummary(f);
         p.cFeat._val.textContent = allFeat.length;
         p.cReq._val.textContent = allReq.length;
-        D.setCoverageCard(p.cCase, allCases.length, D.EXPECTED.rackCount * D.EXPECTED.casesPerRack);
+        p.cCase._val.textContent = allCases.length;
         p.cFiltered._val.textContent = f.length;
         p.cPass._val.textContent = D.outcomeValue(outcomes.pass, outcomes.passRate);
         p.cFail._val.textContent = D.outcomeValue(outcomes.fail, outcomes.failRate);
@@ -1162,7 +1507,7 @@
         var cs = D.collect(p.rack, 'Test Case'), fc = cs.filter(D.inRange);
         p.cFeat._val.textContent = D.collect(p.rack, 'Feature').length;
         p.cReq._val.textContent = D.collect(p.rack, 'System Requirement').length;
-        D.setCoverageCard(p.cCase, cs.length, D.EXPECTED.casesPerRack);
+        p.cCase._val.textContent = cs.length;
         p.cFiltered._val.textContent = fc.length;
         p.cBugs._val.textContent = D.uniqueBugs(cs).length;
         var c2 = D.countStates(fc);
@@ -1174,23 +1519,18 @@
       }
     });
     var tf = allCases.filter(D.inRange).length, totalLinkedBugs = D.uniqueBugs(allCases).length;
-    var expectedTotal = D.EXPECTED.rackCount * D.EXPECTED.casesPerRack;
-    var rackGaps = D.S.racks.map(function (rack) { return { label: rack.label, actual: D.collect(rack, 'Test Case').length }; })
-      .filter(function (entry) { return entry.actual !== D.EXPECTED.casesPerRack; });
-    var coverageMismatch = D.S.racks.length !== D.EXPECTED.rackCount || allCases.length !== expectedTotal || rackGaps.length > 0;
-    var coverageNote = coverageMismatch ? (' Coverage warning: expected ' + D.EXPECTED.rackCount + ' racks × ' + D.EXPECTED.casesPerRack
-      + ' cases = ' + expectedTotal + '; query returned ' + D.S.racks.length + ' racks / ' + allCases.length + ' cases'
-      + (rackGaps.length ? ' (' + rackGaps.map(function (entry) { return entry.label + ' ' + entry.actual + '/' + D.EXPECTED.casesPerRack; }).join(', ') + ')' : '') + '.') : '';
     var bugNote = D.S.bugLinkWarning ? ' Bug link lookup was skipped, but the core dashboard data is current.' : '';
     var metricNote = D.S.metricFieldWarning ? ' Some custom Test Case metric fields were unavailable; the rest of the dashboard is current.' : '';
+    var analyticsNote = D.S.analyticsTrend && D.S.analyticsTrend.status === 'error' ? ' Analytics OData trend is unavailable; open Insights for details.' : '';
+    var testNote = D.S.testResults && D.S.testResults.status === 'error' ? ' Test Runs/Results are unavailable; open Insights for details.' : '';
     var rl = (D.RANGES.filter(function (x) { return x[0] === D.S.range; })[0] || ['', ''])[1];
     var ml = (D.MODES.filter(function (x) { return x[0] === D.S.mode; })[0] || ['', ''])[1];
     var src = D.S.snapshotMode ? ('Offline snapshot (' + D.fmt(D.S.loadedAt) + ')') : (ml + ' · ' + D.fmt(D.S.loadedAt) + ' query re-run');
     requestAnimationFrame(D.fitCardValues);
     if (!tf && allCases.length) {
-      D.setStatus(src + ': loaded ' + allCases.length + ' test cases, but nothing was updated within "' + rl + '" — charts are empty. Latest change: ' + D.fmt(D.latest(allCases)) + '.' + coverageNote + bugNote + metricNote, 'warn');
+      D.setStatus(src + ': loaded ' + allCases.length + ' test cases, but nothing was updated within "' + rl + '" — charts are empty. Latest change: ' + D.fmt(D.latest(allCases)) + '.' + bugNote + metricNote + analyticsNote + testNote, 'warn');
     } else if (D.S.racks.length) {
-      D.setStatus(src + ': ' + D.S.racks.length + ' racks, ' + allCases.length + ' test cases, ' + totalLinkedBugs + ' linked Bugs; "' + rl + '" contains ' + tf + ' updated items.' + coverageNote + bugNote + metricNote, (coverageMismatch || D.S.bugLinkWarning || D.S.metricFieldWarning) ? 'warn' : 'info');
+      D.setStatus(src + ': ' + D.S.racks.length + ' racks, ' + allCases.length + ' test cases, ' + totalLinkedBugs + ' linked Bugs; "' + rl + '" contains ' + tf + ' updated items.' + bugNote + metricNote + analyticsNote + testNote, (D.S.bugLinkWarning || D.S.metricFieldWarning || analyticsNote || testNote) ? 'warn' : 'info');
     }
   };
   D.load = async function () {
@@ -1202,18 +1542,24 @@
         return;
       }
       D.S.racks = s.racks; D.S.loadedAt = s.savedAt || null; D.S.snapshotMode = true; D.S.bugLinkWarning = ''; D.S.metricFieldWarning = '';
+      D.S.analyticsTrend = s.analyticsTrend || { status: 'unavailable', days: [], error: 'This snapshot predates Analytics trend storage.' };
+      D.S.testResults = s.testResults || { status: 'unavailable', runs: [], error: 'This snapshot predates Test Result storage.' };
+      D.S.snapshotComparison = s.snapshotComparison || { status: 'first', previousAt: null, currentAt: D.S.loadedAt, added: [], removed: [], stateChanged: [], updatedThisWeek: [] };
       document.getElementById('updated').textContent = 'Snapshot: ' + D.fmt(D.S.loadedAt);
-      if (D.S.active > D.S.racks.length + 1) D.S.active = 0;
+      if (D.S.active > D.S.racks.length + 2) D.S.active = 0;
       D.buildPanels(); D.refresh();
       return;
     }
     D.setStatus('Running the query with "' + modeLabel + '" and fetching work items …', 'info');
     try {
+      var previous = D.readSnapshot();
       var res = await D.runQuery();
       D.S.racks = res.racks; D.S.loadedAt = new Date().toISOString(); D.S.snapshotMode = false;
+      await D.loadSupplementalData(D.baseFor(), D.allCases());
+      D.S.snapshotComparison = D.compareSnapshot(previous);
       document.getElementById('updated').textContent = 'Updated: ' + D.fmt(D.S.loadedAt);
-      D.saveSnapshot();
-      if (D.S.active > D.S.racks.length + 1) D.S.active = 0;
+      D.saveSnapshot(previous);
+      if (D.S.active > D.S.racks.length + 2) D.S.active = 0;
       D.buildPanels(); D.refresh();
     } catch (e) {
       var m = String((e && e.message) || e);
@@ -1229,8 +1575,47 @@
   D.MODES = [["live","Live query (same-origin REST API)"],["snapshot","Offline snapshot (no network)"],["proxy","Local proxy (custom URL)"]];
   D.getProxy = function () { return (localStorage.getItem('dvdashProxy') || 'http://localhost:8080').replace(/\/+$/, ''); };
   D.baseFor = function () { return D.S.mode === 'proxy' ? D.getProxy() : D.CFG.org; };
-  D.saveSnapshot = function () {
-    try { localStorage.setItem('dvdashSnapshot', JSON.stringify({ savedAt: D.S.loadedAt, racks: D.S.racks })); return true; }
+  D.snapshotPayload = function () {
+    return {
+      savedAt: D.S.loadedAt || new Date().toISOString(), racks: D.S.racks,
+      analyticsTrend: D.S.analyticsTrend, testResults: D.S.testResults, snapshotComparison: D.S.snapshotComparison
+    };
+  };
+  D.snapshotCaseMap = function (snapshot) {
+    var map = {};
+    ((snapshot && snapshot.racks) || []).forEach(function (rack) {
+      D.collect(rack, 'Test Case').forEach(function (testCase) {
+        map[String(testCase.id)] = { id: testCase.id, title: testCase.title, rack: rack.label || rack.title || 'Rack', state: testCase.state || '?', changed: testCase.changed || null };
+      });
+    });
+    return map;
+  };
+  D.compareSnapshot = function (previous) {
+    var current = { savedAt: D.S.loadedAt, racks: D.S.racks }, before = D.snapshotCaseMap(previous), after = D.snapshotCaseMap(current);
+    var comparison = { status: previous && previous.racks ? 'ok' : 'first', previousAt: previous && previous.savedAt || null, currentAt: D.S.loadedAt, added: [], removed: [], stateChanged: [], updatedThisWeek: [] };
+    Object.keys(after).forEach(function (id) {
+      if (comparison.status !== 'first' && !before[id]) comparison.added.push(after[id]);
+      else if (comparison.status !== 'first' && before[id].state !== after[id].state) comparison.stateChanged.push({ id: after[id].id, title: after[id].title, rack: after[id].rack, beforeState: before[id].state, afterState: after[id].state, changed: after[id].changed });
+      if (after[id].changed && Date.now() - new Date(after[id].changed).getTime() <= 7 * 86400000) comparison.updatedThisWeek.push(after[id]);
+    });
+    if (comparison.status !== 'first') Object.keys(before).forEach(function (id) { if (!after[id]) comparison.removed.push(before[id]); });
+    ['added', 'removed', 'stateChanged', 'updatedThisWeek'].forEach(function (key) {
+      comparison[key].sort(function (a, b) { return String(b.changed || '').localeCompare(String(a.changed || '')) || (+a.id - +b.id); });
+    });
+    return comparison;
+  };
+  D.saveSnapshot = function (previous) {
+    try {
+      if (previous && previous.racks && previous.savedAt) {
+        var history = [];
+        try { history = JSON.parse(localStorage.getItem('dvdashSnapshotHistory') || '[]'); } catch (historyError) { history = []; }
+        var day = D.isoDay(previous.savedAt);
+        history = history.filter(function (entry) { return entry && D.isoDay(entry.savedAt) !== day; });
+        history.push(previous); history.sort(function (a, b) { return String(a.savedAt).localeCompare(String(b.savedAt)); });
+        localStorage.setItem('dvdashSnapshotHistory', JSON.stringify(history.slice(-14)));
+      }
+      localStorage.setItem('dvdashSnapshot', JSON.stringify(D.snapshotPayload())); return true;
+    }
     catch (e) { return false; }
   };
   D.readSnapshot = function () {
@@ -1243,7 +1628,7 @@
       if (k === 'EMBEDDED') return;
       var v = D[k];
       if (typeof v === 'function') parts.push('D.' + k + ' = ' + v.toString() + ';');
-      else if (k === 'S') parts.push('D.S = {racks:[],loadedAt:null,range:"all",chartType:"pie",panels:[],active:0,mode:"live"};');
+      else if (k === 'S') parts.push('D.S = {racks:[],loadedAt:null,range:"all",chartType:"pie",panels:[],active:0,mode:"live",analyticsTrend:{status:"idle",days:[]},testResults:{status:"idle",runs:[]},snapshotComparison:null};');
       else if (k === '_timer' || k === '_statusFadeTimer' || k === '_statusHideTimer') return;
       else parts.push('D.' + k + ' = ' + JSON.stringify(v) + ';');
     });
@@ -1251,11 +1636,11 @@
   };
   D.exportHtml = function () {
     if (!D.S.racks || !D.S.racks.length) { D.setStatus('Nothing to export yet — load data successfully first.', 'warn'); return; }
-    var snap = JSON.stringify({ savedAt: D.S.loadedAt || new Date().toISOString(), racks: D.S.racks }).replace(/</g, '\\u003c');
+    var snap = JSON.stringify(D.snapshotPayload()).replace(/</g, '\\u003c');
     var html = '<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="utf-8">'
       + '<title>C4143 DV-Scale Rack Test Status Dashboard (Offline snapshot)</title></head><body>'
       + '<script id="dvdash-snapshot" type="application/json">' + snap + '<\/script>'
-      + '<script>\nvar D = {};\n' + D.serialize()
+      + '<script>\nvar extensionContext = null;\nvar D = {};\n' + D.serialize()
       + '\nD.EMBEDDED = JSON.parse(document.getElementById("dvdash-snapshot").textContent);'
       + '\nD.S.mode = "snapshot";'
       + '\nD.buildShell(); D.load();\n<\/script></body></html>';
