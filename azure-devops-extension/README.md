@@ -4,7 +4,7 @@ This extension packages the same live Dashboard core as the Tampermonkey version
 
 - A full **C4143 DV-Scale** Hub under Azure Test Plans.
 - A resizable **C4143 DV-Scale Status** Dashboard Widget.
-- Azure DevOps-issued access tokens with read-only `vso.work`, `vso.test`, and `vso.analytics` scopes.
+- Azure DevOps-issued access tokens with read-only `vso.work` and `vso.test` scopes.
 
 ## Build and package
 
