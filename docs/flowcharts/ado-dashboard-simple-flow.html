@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Azure DevOps Dashboard 簡易流程</title>
+  <style>
+    body { margin: 0; padding: 24px; font-family: "Segoe UI", system-ui, sans-serif; background: #f8fafc; color: #0f172a; }
+    h1 { margin: 0 0 18px; font-size: 24px; font-weight: 600; }
+    .viewport { overflow: auto; background: white; border: 1px solid #cbd5e1; border-radius: 10px; padding: 20px; }
+    .diagram { min-width: 900px; }
+  </style>
+</head>
+<body>
+  <h1>Azure DevOps Dashboard 簡易概念流程</h1>
+  <div class="viewport">
+    <pre class="mermaid diagram">
+flowchart TD
+    A[使用者開啟 Dashboard] --> B{執行方式}
+    B -->|Tampermonkey| C[使用瀏覽器 Azure DevOps 登入狀態]
+    B -->|Azure DevOps Extension| D[Azure DevOps 自動提供 Access Token]
+    B -->|外部網站／Proxy| E[後端使用 Entra Token 或 PAT]
+    C --> F[Azure DevOps REST API]
+    D --> F
+    E --> F
+    F --> G[執行指定的 Saved Query]
+    G --> H[取得 Work Items 與階層]
+    H --> I[取得 Test Runs／Results]
+    I --> J[整理 Dashboard 資料]
+    J --> K[Overview]
+    J --> L[Rack 1～5]
+    J --> M[Insights]
+    J --> N[Test Features]
+    M --> O[下載週報 CSV／XLSX]
+    N --> P[下載 Rack 1 XLSX]
+    Q[套用其他 Query] --> R{環境是否相同？}
+    R -->|同 Organization／Project／資料結構| S[更換 queryId]
+    R -->|不同環境或結構| T[調整 Organization、Project、欄位與階層規則]
+    </pre>
+  </div>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({ startOnLoad: true, theme: "neutral", flowchart: { htmlLabels: true, curve: "basis" }, securityLevel: "strict" });
+  </script>
+</body>
+</html>

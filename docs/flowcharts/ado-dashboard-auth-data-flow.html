@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Azure DevOps Dashboard 認證與資料流程</title>
+  <style>
+    body { margin: 0; padding: 24px; font-family: "Segoe UI", system-ui, sans-serif; background: #f8fafc; color: #0f172a; }
+    h1 { margin: 0 0 18px; font-size: 24px; font-weight: 600; }
+    .diagram { min-width: 1200px; }
+    .viewport { overflow: auto; background: white; border: 1px solid #cbd5e1; border-radius: 10px; padding: 20px; }
+    .hint { margin: 0 0 14px; color: #475569; }
+  </style>
+</head>
+<body>
+  <h1>Azure DevOps Dashboard 認證、資料讀取與操作流程</h1>
+  <p class="hint">可使用瀏覽器縮放查看完整流程，或列印／另存為 PDF。</p>
+  <div class="viewport">
+    <pre class="mermaid diagram">
+flowchart TD
+    START([開始使用 Dashboard]) --> ENV{Dashboard 執行位置}
+    ENV -->|Azure DevOps 網域內 Tampermonkey| LIVE
+    subgraph LIVE_FLOW["方式一：Tampermonkey Live Query"]
+        LIVE[開啟 azurecsi.visualstudio.com] --> LOGIN[Microsoft Entra ID 登入與 MFA]
+        LOGIN --> SESSION[Azure DevOps Session Cookie]
+        SESSION --> SCRIPT[Tampermonkey 啟動 userscript]
+        SCRIPT --> FETCH_COOKIE["fetch API，credentials: include"]
+        SESSION -. 認證來源 .-> FETCH_COOKIE
+        FETCH_COOKIE --> ADO_LIVE[Azure DevOps REST API]
+    end
+    ENV -->|Azure DevOps Extension| EXT
+    subgraph EXT_FLOW["方式二：Azure DevOps Extension"]
+        EXT[開啟 Extension] --> SDK_TOKEN[SDK.getAccessToken]
+        HOST[Azure DevOps Host] -. 自動核發 Token .-> SDK_TOKEN
+        MANIFEST["vss-extension.json：vso.work、vso.test"] -. 定義唯讀權限 .-> SDK_TOKEN
+        SDK_TOKEN --> BEARER[Bearer Access Token]
+        BEARER --> ADO_EXT[Azure DevOps REST API]
+    end
+    ENV -->|Local Proxy 或外部網站| PROXY
+    subgraph PROXY_FLOW["方式三：Local Proxy／外部網站"]
+        PROXY[無法使用 Azure DevOps Cookie] --> AUTH_CHOICE{後端認證方式}
+        AUTH_CHOICE -->|建議| ENTRA[Microsoft Entra ID Token]
+        AUTH_CHOICE -->|必要時| PAT_CREATE[建立 Azure DevOps PAT]
+        PAT_CREATE --> PAT_SCOPE["Organization：azurecsi；Work Items Read；Test Management Read；短效期限"]
+        PAT_SCOPE --> PAT_SECRET[存入環境變數或 Key Vault]
+        PAT_SECRET --> BASIC[Basic Authorization]
+        ENTRA --> PROXY_BEARER[Bearer Authorization]
+        BASIC --> BACKEND[受保護的 Proxy Backend]
+        PROXY_BEARER --> BACKEND
+        BACKEND --> ADO_PROXY[Azure DevOps REST API]
+    end
+    ADO_LIVE --> AUTHZ{Azure DevOps 驗證與授權}
+    ADO_EXT --> AUTHZ
+    ADO_PROXY --> AUTHZ
+    AUTHZ -->|401| AUTH_FAIL[未登入或 Token 無效]
+    AUTHZ -->|403／404| PERM_FAIL[沒有 Project 或 Query 權限]
+    AUTHZ -->|成功| CFG[D.CFG]
+    CFG --> ORG[org]
+    CFG --> PROJECT[project]
+    CFG --> QUERY_ID[queryId]
+    CFG --> QUERY_URL[queryUrl]
+    ORG --> WIQL[WIQL Saved Query API]
+    PROJECT --> WIQL
+    QUERY_ID --> WIQL
+    WIQL --> QUERY_RESULT[Work Item IDs 與父子階層]
+    QUERY_RESULT --> FIELDS[Fields API]
+    QUERY_RESULT --> BATCH[Work Items Batch API]
+    BATCH --> CORE[核心欄位與自訂欄位]
+    BATCH --> RELATIONS[Parent／Child 與 Linked Bugs]
+    QUERY_RESULT --> CASES[Query 內 Test Cases]
+    CASES --> RUNS[最近 28 天 Test Runs API]
+    RUNS --> RESULTS[Test Results API]
+    RESULTS --> PLANS[Test Plans API]
+    PLANS --> MATCH[依 Case ID 配對最新結果]
+    FIELDS --> BUILD[組合 Dashboard 資料模型]
+    CORE --> BUILD
+    RELATIONS --> BUILD
+    MATCH --> BUILD
+    BUILD --> SNAPSHOT[比較並保存 Offline Snapshot]
+    SNAPSHOT --> UI[建立 Dashboard]
+    UI --> OVERVIEW[Overview]
+    UI --> RACKS[Rack 1～5]
+    UI --> INSIGHTS[Insights]
+    UI --> FEATURES[Test Features]
+    UI --> RERUN[Re-run Query]
+    UI --> AUTO[每 5 分鐘刷新]
+    UI --> RANGE[Changed Date 篩選]
+    INSIGHTS --> CSV[Weekly CSV]
+    INSIGHTS --> WX[Weekly XLSX]
+    FEATURES --> FX[Rack 1 XLSX]
+    WX --> XLSX[Office Open XML]
+    FX --> XLSX
+    XLSX --> SHEETS[Worksheet XML]
+    SHEETS --> FILTER[樣式、欄寬與 AutoFilter]
+    FILTER --> LINKS[Azure DevOps hyperlinks]
+    LINKS --> NOFREEZE[不建立 Freeze Pane]
+    NOFREEZE --> ZIP[封裝成 ZIP／XLSX]
+    ZIP --> DOWNLOAD[下載 .xlsx]
+    CFG --> REUSE{套用其他 Query？}
+    REUSE -->|同 Organization、Project 與結構| IDONLY[更換 queryId 與 queryUrl]
+    REUSE -->|不同 Project| PROJCHANGE[修改 project、queryId、queryUrl]
+    REUSE -->|不同 Organization| ORGCHANGE[修改 org、orgName、project、queryId、queryUrl]
+    REUSE -->|資料結構不同| RULES[修改 Rack 規則、Hierarchy 與欄位 Mapping]
+    PAT_SECRET -. 安全要求 .-> SECURITY["密碼不寫入程式；PAT 不放前端或 GitHub；優先 Entra／Extension Token"]
+    </pre>
+  </div>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({ startOnLoad: true, theme: "neutral", flowchart: { htmlLabels: true, curve: "basis" }, securityLevel: "strict" });
+  </script>
+</body>
+</html>

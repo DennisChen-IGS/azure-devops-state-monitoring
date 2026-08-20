@@ -190,3 +190,8 @@ npm run package
 4. Tampermonkey `@version` 與檔頭說明。
 
 詳細架構、欄位 mapping、版本歷程與驗證紀錄請參考 [HANDOFF](./C4143-DVScale-Dashboard-HANDOFF.md)。
+
+## 運作流程圖
+
+- [簡易概念流程](./docs/flowcharts/ado-dashboard-simple-flow.html)
+- [認證、資料讀取與操作細節流程](./docs/flowcharts/ado-dashboard-auth-data-flow.html)
