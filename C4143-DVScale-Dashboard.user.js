@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         C4143 DV-Scale Rack Test Status Dashboard
 // @namespace    local.ado.dvscale.dashboard
-// @version      1.8.5
-// @description  Keeps equal-width summary cards and formats Pass/Fail rates with concise percentages.
+// @version      1.8.6
+// @description  Shows live query case totals without fixed expected-count comparisons.
 // @homepageURL  https://github.com/alan512627/azure-devops-state-monitoring
 // @supportURL   https://github.com/alan512627/azure-devops-state-monitoring/issues
 // @updateURL    https://raw.githubusercontent.com/alan512627/azure-devops-state-monitoring/main/C4143-DVScale-Dashboard.user.js
@@ -58,7 +58,6 @@
   if (!isDashboardEntry) return;
   var D = {};
   D.CFG = {"org":"https://azurecsi.visualstudio.com","project":"Dev","queryId":"9254024e-6a97-44ed-953b-1aa07d38fb48","queryUrl":"https://azurecsi.visualstudio.com/Dev/_queries/query/9254024e-6a97-44ed-953b-1aa07d38fb48/"};
-  D.EXPECTED = { rackCount: 5, casesPerRack: 58 };
   D.STATE_COLORS = {"Not Started":"#94a3b8","New":"#60a5fa","Proposed":"#f5b544","Design":"#a78bfa","In Progress":"#818cf8","Active":"#818cf8","Ready":"#38bdf8","Committed":"#22d3ee","Passed":"#34d399","Closed":"#2dd4bf","Done":"#2dd4bf","Completed":"#2dd4bf","Failed":"#f87171","Blocked":"#fb7185","Removed":"#9ca3af","Resolved":"#22d3ee","Paused":"#fbbf24"};
   D.TYPE_COLORS = {"Epic":"#c084fc","Feature":"#38bdf8","System Requirement":"#fbbf24","Test Case":"#34d399","User Story":"#818cf8","Task":"#60a5fa","Bug":"#fb7185","Issue":"#fb923c"};
   D.STATE_ORDER = ["Not Started","New","Proposed","Design","Ready","Committed","Active","In Progress","Paused","Blocked","Failed","Passed","Resolved","Closed","Done","Completed","Removed"];
@@ -626,14 +625,6 @@
       }
     });
   };
-  D.setCoverageCard = function (card, actual, expected) {
-    var complete = actual === expected, tone = complete ? '#34d399' : '#fb7185';
-    card._val.textContent = actual + ' / ' + expected;
-    card.style.borderLeft = '4px solid ' + tone;
-    card.style.background = 'linear-gradient(135deg,' + D.rgba(tone, .17) + ',rgba(17,29,51,.98) 68%)';
-    card.title = complete ? ('Query coverage complete: ' + actual + ' of ' + expected + ' expected Test Cases.')
-      : ('Query coverage mismatch: returned ' + actual + ' of ' + expected + ' expected Test Cases (' + Math.abs(expected - actual) + (actual < expected ? ' missing).' : ' extra).'));
-  };
   D.box = function (title) { var b = D.el('div', 'box'); if (title) b.appendChild(D.el('h3', null, title)); return b; };
   D.bugTable = function (cases) {
     var grouped = {};
@@ -876,7 +867,7 @@
     var sticky = D.el('div', 'suite-sticky'), cards = D.el('div', 'cards');
     [
       D.card('RACK 1 TEST FEATURES', groups.filter(function (group) { return group.name !== 'Unmapped'; }).length, '#38bdf8'),
-      D.card('RACK 1 CASES / EXPECTED', rackCaseCount + ' / ' + D.EXPECTED.casesPerRack, rackCaseCount === D.EXPECTED.casesPerRack ? '#34d399' : '#fb7185'),
+      D.card('RACK 1 CASES', rackCaseCount, '#34d399'),
       D.card('LISTED / RACK 1 CASES', allEntries.length + ' / ' + rackCaseCount, allEntries.length === rackCaseCount ? '#34d399' : '#fb7185'),
       D.card('UNMAPPED CASES', unmapped, unmapped ? '#fb7185' : '#2dd4bf')
     ].forEach(function (card) { cards.appendChild(card); });
@@ -1049,7 +1040,7 @@
         refs.cRacks = D.card('RACKS', D.S.racks.length, '#38bdf8');
         refs.cFeat = D.card('FEATURES', 0, '#c084fc');
         refs.cReq = D.card('SYSTEM REQS', 0, '#fbbf24');
-        refs.cCase = D.card('TOTAL TEST CASES / EXPECTED', '-', '#34d399');
+        refs.cCase = D.card('TOTAL TEST CASES', '-', '#34d399');
         refs.cFiltered = D.card('UPDATED IN RANGE', 0, '#60a5fa');
         refs.cPass = D.card('PASS CASES / RATE', '-', '#2dd4bf');
         refs.cFail = D.card('FAIL CASES (BLOCKED) / RATE', '-', '#fb7185');
@@ -1080,7 +1071,7 @@
       } else if (def.kind === 'rack') {
         refs.cFeat = D.card('FEATURES', 0, '#c084fc');
         refs.cReq = D.card('SYSTEM REQS', 0, '#fbbf24');
-        refs.cCase = D.card('TEST CASES / EXPECTED', '-', '#34d399');
+        refs.cCase = D.card('TEST CASES', '-', '#34d399');
         refs.cFiltered = D.card('UPDATED IN RANGE', 0, '#60a5fa');
         refs.cBugs = D.card('LINKED BUGS', 0, '#f87171');
         refs.cBugs.title = 'Unique Bug work items linked from Test Cases in this Rack.';
@@ -1140,7 +1131,7 @@
         var outcomes = D.outcomeSummary(f);
         p.cFeat._val.textContent = allFeat.length;
         p.cReq._val.textContent = allReq.length;
-        D.setCoverageCard(p.cCase, allCases.length, D.EXPECTED.rackCount * D.EXPECTED.casesPerRack);
+        p.cCase._val.textContent = allCases.length;
         p.cFiltered._val.textContent = f.length;
         p.cPass._val.textContent = D.outcomeValue(outcomes.pass, outcomes.passRate);
         p.cFail._val.textContent = D.outcomeValue(outcomes.fail, outcomes.failRate);
@@ -1162,7 +1153,7 @@
         var cs = D.collect(p.rack, 'Test Case'), fc = cs.filter(D.inRange);
         p.cFeat._val.textContent = D.collect(p.rack, 'Feature').length;
         p.cReq._val.textContent = D.collect(p.rack, 'System Requirement').length;
-        D.setCoverageCard(p.cCase, cs.length, D.EXPECTED.casesPerRack);
+        p.cCase._val.textContent = cs.length;
         p.cFiltered._val.textContent = fc.length;
         p.cBugs._val.textContent = D.uniqueBugs(cs).length;
         var c2 = D.countStates(fc);
@@ -1174,13 +1165,6 @@
       }
     });
     var tf = allCases.filter(D.inRange).length, totalLinkedBugs = D.uniqueBugs(allCases).length;
-    var expectedTotal = D.EXPECTED.rackCount * D.EXPECTED.casesPerRack;
-    var rackGaps = D.S.racks.map(function (rack) { return { label: rack.label, actual: D.collect(rack, 'Test Case').length }; })
-      .filter(function (entry) { return entry.actual !== D.EXPECTED.casesPerRack; });
-    var coverageMismatch = D.S.racks.length !== D.EXPECTED.rackCount || allCases.length !== expectedTotal || rackGaps.length > 0;
-    var coverageNote = coverageMismatch ? (' Coverage warning: expected ' + D.EXPECTED.rackCount + ' racks × ' + D.EXPECTED.casesPerRack
-      + ' cases = ' + expectedTotal + '; query returned ' + D.S.racks.length + ' racks / ' + allCases.length + ' cases'
-      + (rackGaps.length ? ' (' + rackGaps.map(function (entry) { return entry.label + ' ' + entry.actual + '/' + D.EXPECTED.casesPerRack; }).join(', ') + ')' : '') + '.') : '';
     var bugNote = D.S.bugLinkWarning ? ' Bug link lookup was skipped, but the core dashboard data is current.' : '';
     var metricNote = D.S.metricFieldWarning ? ' Some custom Test Case metric fields were unavailable; the rest of the dashboard is current.' : '';
     var rl = (D.RANGES.filter(function (x) { return x[0] === D.S.range; })[0] || ['', ''])[1];
@@ -1188,9 +1172,9 @@
     var src = D.S.snapshotMode ? ('Offline snapshot (' + D.fmt(D.S.loadedAt) + ')') : (ml + ' · ' + D.fmt(D.S.loadedAt) + ' query re-run');
     requestAnimationFrame(D.fitCardValues);
     if (!tf && allCases.length) {
-      D.setStatus(src + ': loaded ' + allCases.length + ' test cases, but nothing was updated within "' + rl + '" — charts are empty. Latest change: ' + D.fmt(D.latest(allCases)) + '.' + coverageNote + bugNote + metricNote, 'warn');
+      D.setStatus(src + ': loaded ' + allCases.length + ' test cases, but nothing was updated within "' + rl + '" — charts are empty. Latest change: ' + D.fmt(D.latest(allCases)) + '.' + bugNote + metricNote, 'warn');
     } else if (D.S.racks.length) {
-      D.setStatus(src + ': ' + D.S.racks.length + ' racks, ' + allCases.length + ' test cases, ' + totalLinkedBugs + ' linked Bugs; "' + rl + '" contains ' + tf + ' updated items.' + coverageNote + bugNote + metricNote, (coverageMismatch || D.S.bugLinkWarning || D.S.metricFieldWarning) ? 'warn' : 'info');
+      D.setStatus(src + ': ' + D.S.racks.length + ' racks, ' + allCases.length + ' test cases, ' + totalLinkedBugs + ' linked Bugs; "' + rl + '" contains ' + tf + ' updated items.' + bugNote + metricNote, (D.S.bugLinkWarning || D.S.metricFieldWarning) ? 'warn' : 'info');
     }
   };
   D.load = async function () {

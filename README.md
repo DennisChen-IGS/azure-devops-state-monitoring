@@ -4,7 +4,7 @@ C4143 DV-Scale Rack Test Status Dashboard 是一個 Tampermonkey userscript。�
 
 ## 目前版本
 
-- Dashboard：[C4143-DVScale-Dashboard.user.js](./C4143-DVScale-Dashboard.user.js)（固定安裝網址，腳本內版本 v1.8.5）
+- Dashboard：[C4143-DVScale-Dashboard.user.js](./C4143-DVScale-Dashboard.user.js)（固定安裝網址，腳本內版本 v1.8.6）
 - 開發與維護文件：[C4143-DVScale-Dashboard-HANDOFF.md](./C4143-DVScale-Dashboard-HANDOFF.md)
 - Azure DevOps organization：`https://azurecsi.visualstudio.com`
 - Azure DevOps project：`Dev`
@@ -15,7 +15,7 @@ v1.8.2 的 `Test Features` 每次 Query 後直接遍歷 Rack 1 的最新 Work It
 
 頁面上的 `LISTED / RACK 1 CASES` 卡片會直接比較最後一頁列出的 Case 數與 Rack 1 分頁的 Case 數，正常情況應顯示 `58 / 58`。
 
-目前正式基準為 **5 Racks × 58 Cases = 290 Cases**。v1.8.3 起，Overview 的 `TOTAL TEST CASES / EXPECTED` 應顯示 `290 / 290`，每個 Rack 的 `TEST CASES / EXPECTED` 應顯示 `58 / 58`。如果 Query 回傳數量不同，卡片會變成紅色，右下提示會列出總數及各 Rack 的差異；Dashboard 不會自行補造缺少的 Case。
+v1.8.6 起，Overview、各 Rack 與 Test Features 都只顯示 Azure DevOps Query 當次實際回傳的 Case 數量，不再顯示固定 Expected 數量，也不再因為總數不是 290 或單櫃不是 58 而產生 Coverage warning。`LISTED / RACK 1 CASES` 仍會比較 Test Features 列表與 Rack 1 的實際來源數量，確保兩個即時畫面同步。
 
 v1.7.2 將 Overview、Rack 1～5 與最後一頁改為左側直式導覽。分頁上下排列，文字整段旋轉顯示；桌面版導覽寬 64px、按鈕寬 50px、字體 11px，窄螢幕自動縮為 54px／44px／10px，不占用右側 Dashboard 的資料空間。
 
@@ -26,6 +26,18 @@ v1.8.1 將固定範圍縮小為控制列、左側分頁與摘要卡；圓餅圖�
 v1.8.4 讓同一列摘要卡維持完全相同的寬度與高度，並依每個數值的實際長度自動微調字級。`290 / 290`、Pass／Fail 數量與百分比等較長內容會完整顯示，不再使用省略號；窄螢幕仍維持單列，改由卡片列內的水平捲動查看其餘卡片。
 
 v1.8.5 將 Overview 的 Pass／Fail Rate 限制為最多一位小數，整數百分比不保留 `.0`。例如一般結果顯示 `72 · 24.8%`、完整完成顯示 `290 · 100%`；當 Pass 或 Fail 尚無任何數量時，該卡片只顯示 `0%`。
+
+v1.8.6 移除所有固定 Expected Case 數量與 Coverage warning。Case 新增、移除或移至不同 Rack 後，下一次重新查詢會直接顯示 Query 的實際結果，不需要同步修改 userscript 裡的基準值。
+
+## 發布成網頁與自動連動
+
+這個 Dashboard 可以發布成網頁，但要依使用情境選擇方式：
+
+- **目前 Tampermonkey 方式（建議內部使用）**：Dashboard 在 `azurecsi.visualstudio.com` 同源頁面內執行，直接沿用使用者已登入的 Azure DevOps session。按 `F5`、**Re-run query**，或啟用每 5 分鐘自動刷新時，就會重新查詢並顯示最新結果。
+- **純靜態網站（例如 GitHub Pages）**：可以發布畫面或離線 snapshot，但瀏覽器通常無法從其他網域直接讀取私有 Azure DevOps Query，因為會遇到登入授權與跨網域限制；因此不能只把目前的 JS 放上靜態網站就得到即時資料。
+- **可共用的即時網站**：需要增加受保護的後端 API／proxy，或製作 Azure DevOps Extension。後端使用 OAuth、Managed Identity 或安全存放的 PAT 查詢 Azure DevOps，再把授權後的結果提供給前端。不要把 PAT 寫在公開的 HTML 或 JavaScript 中。
+
+Azure DevOps Query 有更新時，資料是由 Dashboard 在下一次載入、手動重新查詢或排程刷新時「拉取」回來；Query 本身不會主動把更新推送到靜態網頁。若需要無人開啟頁面也持續更新，可由後端排程或 CI 工作定期執行 Query 並更新網站資料。
 
 ## 使用 Tampermonkey 安裝
 

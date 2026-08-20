@@ -4,14 +4,14 @@
 | --- | --- |
 | 文件版本 | 2.0 |
 | 初版日期 | 2026-07-28 |
-| 最後更新 | 2026-08-14 |
-| 最新腳本 | `C4143-DVScale-Dashboard.user.js`（v1.8.3） |
-| 最新腳本大小 | 97067 bytes（約 94.8 KB） |
+| 最後更新 | 2026-08-20 |
+| 最新腳本 | `C4143-DVScale-Dashboard.user.js`（v1.8.6） |
+| 最新腳本大小 | 96194 bytes（約 93.9 KB） |
 | 執行環境 | Chrome + Tampermonkey，需已登入 Azure DevOps（azurecsi） |
 
-> 第 1～12 節保留 v1.2 建置時的原始設計與調查紀錄；第 13 節為 v1.3～v1.6.2 的後續開發補充，第 14 節為 Test Suites 分頁，第 15 節為 v1.7.1 自動更新入口，第 16 節為 v1.7.2 左側直式分頁，第 17 節為 v1.7.3 提示淡出修正，第 18 節為 v1.8.0 sticky 與 Excel 匯出，第 19 節為 v1.8.1 固定範圍與 Rack 1 Test Features 平鋪頁，第 20 節為 v1.8.2 Test Features 列表復原與數量同步，第 21 節為 v1.8.3 的 290 Cases 正式基準。
+> 第 1～12 節保留 v1.2 建置時的原始設計與調查紀錄；第 13 節為 v1.3～v1.6.2 的後續開發補充，第 14～23 節記錄 v1.7.0～v1.8.5 的演進，第 24 節為 v1.8.6 移除固定 Expected Case 數量與網站發布方式。
 
-> **目前正式數量（2026-08-14 Live Query 驗證）：5 Racks × 每櫃 58 Test Cases = 290 Test Cases。文件前段出現的 54／270 是舊資料快照與歷史驗證紀錄，不代表目前數量。**
+> **2026-08-14 的 Live Query 曾驗證到 5 Racks × 每櫃 58 Test Cases = 290 Test Cases；這是當時的查詢結果，不再作為固定 Expected 基準。v1.8.6 只顯示每次 Query 的實際數量。文件中的 54／270、58／290 等數值均為各版本當時的驗證紀錄。**
 
 ---
 
@@ -48,7 +48,7 @@
 
 | 檔案 / Key | 說明 |
 | --- | --- |
-| `C4143-DVScale-Dashboard.user.js` | 最新主交付物與固定安裝入口，Tampermonkey userscript v1.8.3 |
+| `C4143-DVScale-Dashboard.user.js` | 最新主交付物與固定安裝入口，Tampermonkey userscript v1.8.6 |
 | `C4143-DVScale-Dashboard.user_v1.6.1-bug-priority-severity.js` | 上一個穩定版本，保留供回退與比對 |
 | `C4143-DVScale-Dashboard-snapshot.html` | 由頁面上 **Export offline snapshot .html** 按鈕產生的離線單檔（含資料 + 程式碼） |
 | `HANDOFF.md` | 本文件 |
@@ -300,6 +300,9 @@ document-idle → hash 含 dvdash？ → D.boot()
 | v1.8.1 | Sticky 僅保留摘要卡以上，圖表開始正常捲動；卡片維持單列；最後一頁依 Rack 1 即時 Feature 階層平鋪全部 Case |
 | v1.8.2 | Test Features 恢復 Feature 下拉與 Case 表格列表；資料仍由 Rack 1 階層動態產生，並顯示列表數／Rack 1 Case 數同步檢查 |
 | v1.8.3 | 正式基準更新為 5×58=290；Overview、Rack 與 Test Features 顯示實際／預期數量，缺漏時以紅色卡片與 Coverage warning 提示 |
+| v1.8.4 | 同列摘要卡維持等寬、數值依可用空間縮放並完整顯示 |
+| v1.8.5 | Pass／Fail 百分比最多一位小數；數量為零時只顯示 `0%` |
+| v1.8.6 | 移除固定 Expected Case 數量與 Coverage warning，只顯示 Query 實際總數；保留 Test Features 與 Rack 1 的即時同步比較 |
 
 ---
 
@@ -476,7 +479,7 @@ v1.6.2 完成後執行以下檢查：
 
 ### 14.1 交付檔案
 
-- 最新 userscript：`C4143-DVScale-Dashboard.user.js`（目前 `@version` 1.8.3）
+- 最新 userscript：`C4143-DVScale-Dashboard.user.js`（目前 `@version` 1.8.6）
 - 基準來源：v1.6.2，原有 Overview、Rack 1～5、Bug、Priority、Sample Size、Number_of_cycles 與 Test Duration 功能均保留。
 - 新增第 7 個分頁：`Test Suites`。
 
@@ -721,4 +724,32 @@ Tampermonkey 會按設定的更新間隔讀取固定 URL，比較 `@version`，�
 - 全部 Closed：Pass `290 · 100%`、Fail `0%`；全部 Blocked 則 Pass `0%`、Fail `290 · 100%`。
 - 1280 × 720 與 390 × 720 均維持等寬卡片，Pass／Fail 數值沒有截斷。
 - Rack 1／Overview 分頁切換正常；Browser Console 0 Error／0 Warning。
+- JavaScript `node --check` 與 `git diff --check` 通過。
+
+---
+
+## 24. 2026-08-20 實際 Case 數量與網站發布方式（v1.8.6）
+
+### 24.1 Expected Case 顯示移除
+
+- 移除 `D.EXPECTED`、`D.setCoverageCard()` 與固定 290／58 的差異計算。
+- Overview 卡片名稱改為 `TOTAL TEST CASES`，只顯示當次 Query 的全部 Test Case 數量。
+- Rack 1～5 卡片名稱改為 `TEST CASES`，只顯示各 Rack 當次實際數量。
+- Test Features 卡片名稱改為 `RACK 1 CASES`，只顯示 Rack 1 實際來源數量。
+- 不再因為總數不是 290 或單櫃不是 58 而將卡片標紅或顯示 `Coverage warning`。
+- 保留 `LISTED / RACK 1 CASES`，繼續比較最後一頁列出的 Case 數與 Rack 1 即時來源；這是兩個資料視圖的同步檢查，不是固定 Expected 基準。
+
+### 24.2 網頁發布與 Azure DevOps 自動連動
+
+- 現行 Tampermonkey 版本在 Azure DevOps 同源頁面執行，沿用登入 session；每次 `F5`、**Re-run query** 或 5 分鐘自動刷新都會重新執行 Query。
+- 純 GitHub Pages 等靜態網站可發布離線 snapshot，但不能直接依賴目前的 same-origin REST 呼叫讀取私有 Query，主要限制是瀏覽器跨網域與 Azure DevOps 身分驗證。
+- 若要建立可共用的即時網址，應增加受保護的後端 API／proxy，或改為 Azure DevOps Extension。OAuth、Managed Identity 或 PAT 必須放在伺服器端安全保存，不可嵌入公開 JS。
+- Query 更新是 pull 模式：下一次頁面載入或刷新時取得最新資料。若要在無人開頁時也持續同步，需由後端排程或 CI 定期執行 Query 並更新資料。
+
+### 24.3 驗證基準
+
+- 一般 fixture 實測顯示 Overview `290`、Rack 1 `58`、Test Features `58`，`LISTED / RACK 1 CASES` 為 `58 / 58`；頁面沒有 `/ EXPECTED` 或 Coverage warning。
+- 替代 fixture 實測顯示 Overview `285`、Rack 1 `57`、Test Features `57`，不會被視為錯誤；`LISTED / RACK 1 CASES` 保持 `57 / 57`。
+- 1280px 桌面版 9 張 Overview 卡片等寬約 118.97px、高度 64.4px，所有數值完整；390px 窄螢幕維持 118px 等寬卡片並在卡片列內水平捲動，所有數值均未截斷。
+- Test Features 表格分別為 58 與 57 筆，與 Rack 1 實際來源一致；Browser Console 0 Error／0 Warning。
 - JavaScript `node --check` 與 `git diff --check` 通過。
