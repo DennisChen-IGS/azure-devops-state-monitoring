@@ -1,16 +1,15 @@
 // ==UserScript==
 // @name         C4143 DV-Scale Rack Test Status Dashboard
 // @namespace    local.ado.dvscale.dashboard
-// @version      1.9.0
-// @description  Adds Analytics trends, real Test Results, weekly exports, snapshot differences, and Azure DevOps Extension support.
+// @version      1.9.2
+// @description  Adds real Test Results, weekly exports, snapshot differences, and Azure DevOps Extension support.
 // @homepageURL  https://github.com/alan512627/azure-devops-state-monitoring
 // @supportURL   https://github.com/alan512627/azure-devops-state-monitoring/issues
 // @updateURL    https://raw.githubusercontent.com/alan512627/azure-devops-state-monitoring/main/C4143-DVScale-Dashboard.user.js
 // @downloadURL  https://raw.githubusercontent.com/alan512627/azure-devops-state-monitoring/main/C4143-DVScale-Dashboard.user.js
 // @match        https://azurecsi.visualstudio.com/*
 // @run-at       document-idle
-// @grant        GM_xmlhttpRequest
-// @connect      analytics.dev.azure.com
+// @grant        none
 // ==/UserScript==
 
 /* ------------------------------------------------------------------
@@ -59,7 +58,7 @@
     /^\/_apis\/projects\/?$/i.test(location.pathname);
   if (!isDashboardEntry) return;
   var D = {};
-  D.CFG = {"org":"https://azurecsi.visualstudio.com","orgName":"azurecsi","project":"Dev","queryId":"9254024e-6a97-44ed-953b-1aa07d38fb48","queryUrl":"https://azurecsi.visualstudio.com/Dev/_queries/query/9254024e-6a97-44ed-953b-1aa07d38fb48/","analyticsVersion":"v3.0-preview","trendDays":30,"testResultDays":28};
+  D.CFG = {"org":"https://azurecsi.visualstudio.com","orgName":"azurecsi","project":"Dev","queryId":"9254024e-6a97-44ed-953b-1aa07d38fb48","queryUrl":"https://azurecsi.visualstudio.com/Dev/_queries/query/9254024e-6a97-44ed-953b-1aa07d38fb48/","testResultDays":28};
   if (extensionContext) {
     D.CFG.org = String(extensionContext.org || D.CFG.org).replace(/\/+$/, '');
     D.CFG.orgName = extensionContext.orgName || D.CFG.orgName;
@@ -81,7 +80,7 @@
     igsOwner: { aliases: ['IGS Owner'] },
     comments: { aliases: ['Comments', 'Comment'] }
   };
-  D.S = {racks:[],loadedAt:null,range:"all",chartType:"pie",panels:[],active:0,mode:"live",analyticsTrend:{status:"idle",days:[]},testResults:{status:"idle",runs:[]},snapshotComparison:null};
+  D.S = {racks:[],loadedAt:null,range:"all",chartType:"pie",panels:[],active:0,mode:"live",testResults:{status:"idle",runs:[]},snapshotComparison:null};
   D.el = function (t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; };
   D.svg = function (t, a) { var e = document.createElementNS('http://www.w3.org/2000/svg', t); for (var k in a) e.setAttribute(k, a[k]); return e; };
   D.colorFor = function (s) { return D.STATE_COLORS[s] || '#cbd5e1'; };
@@ -145,26 +144,6 @@
     }
     if ((res.headers.get('content-type') || '').indexOf('json') < 0) throw new Error('AUTH');
     return res.json();
-  };
-  D.analyticsFetch = async function (url) {
-    try { return await D.apiFetch(url); }
-    catch (fetchError) {
-      if (extensionContext || typeof GM_xmlhttpRequest !== 'function') throw fetchError;
-      return new Promise(function (resolve, reject) {
-        GM_xmlhttpRequest({
-          method: 'GET', url: url, withCredentials: true,
-          headers: { Accept: 'application/json' },
-          onload: function (response) {
-            if (response.status === 401 || response.status === 203 || response.status === 302) { reject(new Error('AUTH')); return; }
-            if (response.status < 200 || response.status >= 300) { reject(new Error('HTTP ' + response.status + ': Analytics OData request failed')); return; }
-            try { resolve(JSON.parse(response.responseText)); }
-            catch (parseError) { reject(new Error('Analytics OData returned invalid JSON')); }
-          },
-          onerror: function () { reject(fetchError); },
-          ontimeout: function () { reject(new Error('Analytics OData request timed out')); }
-        });
-      });
-    }
   };
   D.normalizeFieldName = function (value) {
     return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
@@ -332,37 +311,6 @@
     if (isNaN(date.getTime())) return '';
     return date.getUTCFullYear() + '-' + String(date.getUTCMonth() + 1).padStart(2, '0') + '-' + String(date.getUTCDate()).padStart(2, '0');
   };
-  D.dateSk = function (date) { return +(D.isoDay(date).replace(/-/g, '')); };
-  D.analyticsBaseFor = function () {
-    return 'https://analytics.dev.azure.com/' + encodeURIComponent(D.CFG.orgName) + '/' + encodeURIComponent(D.CFG.project)
-      + '/_odata/' + D.CFG.analyticsVersion;
-  };
-  D.loadAnalyticsTrend = async function (cases) {
-    var ids = cases.map(function (item) { return +item.id; }).filter(function (id) { return isFinite(id); });
-    if (!ids.length) { D.S.analyticsTrend = { status: 'ok', days: [], source: 'Analytics OData' }; return; }
-    var from = new Date(); from.setUTCHours(0, 0, 0, 0); from.setUTCDate(from.getUTCDate() - (D.CFG.trendDays - 1));
-    var chunks = [];
-    for (var i = 0; i < ids.length; i += 45) chunks.push(ids.slice(i, i + 45));
-    var responses = await D.mapLimit(chunks, 3, async function (chunk) {
-      var idFilter = chunk.map(function (id) { return 'WorkItemId eq ' + id; }).join(' or ');
-      var apply = "filter(DateSK ge " + D.dateSk(from) + " and WorkItemType eq 'Test Case' and (" + idFilter
-        + '))/groupby((DateSK,State),aggregate($count as Count))';
-      var url = D.analyticsBaseFor() + '/WorkItemSnapshot?$apply=' + encodeURIComponent(apply) + '&$orderby=' + encodeURIComponent('DateSK asc');
-      return D.analyticsFetch(url);
-    });
-    var byDay = {};
-    responses.forEach(function (response) {
-      (response.value || []).forEach(function (row) {
-        var raw = String(row.DateSK || ''), day = raw.length === 8 ? raw.slice(0, 4) + '-' + raw.slice(4, 6) + '-' + raw.slice(6) : D.isoDay(row.DateValue);
-        if (!day) return;
-        var state = row.State || 'Unknown';
-        byDay[day] = byDay[day] || {};
-        byDay[day][state] = (byDay[day][state] || 0) + (+row.Count || 0);
-      });
-    });
-    var days = Object.keys(byDay).sort().map(function (day) { return { date: day, counts: byDay[day] }; });
-    D.S.analyticsTrend = { status: 'ok', days: days, source: 'Analytics OData WorkItemSnapshot', from: D.isoDay(from), loadedAt: new Date().toISOString() };
-  };
   D.normalizedTitle = function (value) { return String(value || '').trim().replace(/\s+/g, ' ').toLowerCase(); };
   D.testRunUrl = function (runId) {
     return D.CFG.org + '/' + encodeURIComponent(D.CFG.project) + '/_TestManagement/Runs?runId=' + encodeURIComponent(runId) + '&_a=runCharts';
@@ -461,15 +409,11 @@
     return summary;
   };
   D.loadSupplementalData = async function (base, cases) {
-    D.S.analyticsTrend = { status: 'loading', days: [] };
     D.S.testResults = { status: 'loading', runs: [] };
-    await Promise.all([
-      D.loadAnalyticsTrend(cases).catch(function (error) { D.S.analyticsTrend = { status: 'error', days: [], error: String((error && error.message) || error), source: 'Analytics OData WorkItemSnapshot' }; }),
-      D.loadTestResults(base, cases).catch(function (error) {
-        cases.forEach(function (testCase) { testCase.latestResult = null; });
-        D.S.testResults = { status: 'error', runs: [], error: String((error && error.message) || error), source: 'Azure DevOps Test Runs / Results' };
-      })
-    ]);
+    await D.loadTestResults(base, cases).catch(function (error) {
+      cases.forEach(function (testCase) { testCase.latestResult = null; });
+      D.S.testResults = { status: 'error', runs: [], error: String((error && error.message) || error), source: 'Azure DevOps Test Runs / Results' };
+    });
   };
   D.collect = function (node, type, out) { out = out || []; if (node.type === type) out.push(node); (node.children || []).forEach(function (c) { D.collect(c, type, out); }); return out; };
   D.inRange = function (c) { var v = D.S.range; if (v === 'all') return true; if (!c.changed) return false; return (Date.now() - new Date(c.changed).getTime()) <= parseInt(v, 10) * 86400000; };
@@ -794,48 +738,6 @@
     badge.title = result.runName + ' · ' + D.fmt(result.completedDate) + ' · matched by ' + result.matchMethod;
     return badge;
   };
-  D.analyticsLineChart = function (trend) {
-    var days = trend && trend.days || [], W = 920, H = 340, L = 52, R = 20, T = 18, B = 52;
-    var wrap = D.el('div', 'trend-scroll'), svg = D.svg('svg', { viewBox: '0 0 ' + W + ' ' + H, width: '100%', height: '340', role: 'img', 'aria-label': 'Daily Test Case counts by Azure DevOps State' });
-    wrap.appendChild(svg);
-    if (!days.length) {
-      var empty = D.svg('text', { x: W / 2, y: H / 2, fill: '#8fa3c0', 'text-anchor': 'middle', 'font-size': '14' });
-      empty.textContent = trend && trend.status === 'error' ? 'Analytics OData unavailable: ' + trend.error : 'No Analytics trend data'; svg.appendChild(empty); return wrap;
-    }
-    var stateSet = {}, max = 1;
-    days.forEach(function (day) { Object.keys(day.counts || {}).forEach(function (state) { stateSet[state] = 1; max = Math.max(max, +day.counts[state] || 0); }); });
-    var states = D.orderStates(Object.keys(stateSet)), pw = W - L - R, ph = H - T - B;
-    for (var g = 0; g <= 5; g++) {
-      var y = T + ph - ph * g / 5;
-      svg.appendChild(D.svg('line', { x1: L, y1: y, x2: L + pw, y2: y, stroke: '#1c2942', 'stroke-width': '1' }));
-      var label = D.svg('text', { x: L - 8, y: y + 4, fill: '#7d93b3', 'text-anchor': 'end', 'font-size': '10' }); label.textContent = Math.round(max * g / 5); svg.appendChild(label);
-    }
-    var every = Math.max(1, Math.ceil(days.length / 7));
-    days.forEach(function (day, index) {
-      if (index % every && index !== days.length - 1) return;
-      var x = L + (days.length === 1 ? pw / 2 : pw * index / (days.length - 1));
-      var label = D.svg('text', { x: x, y: T + ph + 20, fill: '#8fa3c0', 'text-anchor': 'middle', 'font-size': '10' }); label.textContent = day.date.slice(5); svg.appendChild(label);
-    });
-    states.forEach(function (state) {
-      var points = days.map(function (day, index) {
-        var x = L + (days.length === 1 ? pw / 2 : pw * index / (days.length - 1));
-        var value = +(day.counts[state] || 0), y = T + ph - ph * value / max;
-        return { x: x, y: y, value: value, date: day.date };
-      });
-      var polyline = D.svg('polyline', { points: points.map(function (point) { return point.x + ',' + point.y; }).join(' '), fill: 'none', stroke: D.colorFor(state), 'stroke-width': '3', 'stroke-linejoin': 'round', 'stroke-linecap': 'round' });
-      svg.appendChild(polyline);
-      points.forEach(function (point) {
-        var circle = D.svg('circle', { cx: point.x, cy: point.y, r: '3.5', fill: D.colorFor(state), tabindex: '0' });
-        var title = D.svg('title'); title.textContent = point.date + ' · ' + state + ': ' + point.value; circle.appendChild(title); svg.appendChild(circle);
-      });
-    });
-    var legend = D.el('div', 'legend'); states.forEach(function (state) { legend.appendChild(D.chip(state)); }); wrap.appendChild(legend);
-    var details = D.el('details', 'trend-table-details'), summary = D.el('summary', null, 'View accessible trend table'); details.appendChild(summary);
-    var tableWrap = D.el('div', 'table-scroll'), table = D.el('table'), thead = D.el('thead'), header = D.el('tr');
-    header.appendChild(D.el('th', null, 'Date')); states.forEach(function (state) { header.appendChild(D.el('th', 'num', state)); }); thead.appendChild(header); table.appendChild(thead);
-    var tbody = D.el('tbody'); days.forEach(function (day) { var row = D.el('tr'); row.appendChild(D.el('td', null, day.date)); states.forEach(function (state) { row.appendChild(D.el('td', 'num', String(day.counts[state] || 0))); }); tbody.appendChild(row); });
-    table.appendChild(tbody); tableWrap.appendChild(table); details.appendChild(tableWrap); wrap.appendChild(details); return wrap;
-  };
   D.testRunsTable = function () {
     var runs = D.S.testResults && D.S.testResults.runs || [];
     if (!runs.length) return D.el('div', 'empty', D.S.testResults && D.S.testResults.status === 'error' ? 'Test Runs unavailable: ' + D.S.testResults.error : 'No Test Runs found in the last ' + D.CFG.testResultDays + ' days');
@@ -885,43 +787,78 @@
     var lines = [headers.map(D.csvValue).join(',')]; D.weeklyRows().forEach(function (row) { lines.push(keys.map(function (key) { return D.csvValue(row[key]); }).join(',')); });
     D.downloadBlob('\ufeff' + lines.join('\r\n'), 'text/csv;charset=utf-8', 'C4143-Weekly-Report-' + D.reportStamp() + '.csv'); D.setStatus('Downloaded weekly CSV report with ' + (lines.length - 1) + ' case rows.', 'info');
   };
-  D.excelWorksheet = function (name, headers, rows) {
-    var xml = '<Worksheet ss:Name="' + D.xmlEsc(name) + '"><Table ss:ExpandedColumnCount="' + headers.length + '" ss:ExpandedRowCount="' + (rows.length + 1) + '" x:FullColumns="1" x:FullRows="1"><Row>';
-    headers.forEach(function (header) { xml += D.excelCell(header, 'Header'); }); xml += '</Row>';
-    rows.forEach(function (row) { xml += '<Row>'; row.forEach(function (cell) { xml += D.excelCell(cell && cell.value != null ? cell.value : cell, cell && cell.href ? 'Link' : 'Text', false, cell && cell.href); }); xml += '</Row>'; });
-    return xml + '</Table><WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel"><FreezePanes/><FrozenNoSplit/><SplitHorizontal>1</SplitHorizontal><TopRowBottomPane>1</TopRowBottomPane></WorksheetOptions><AutoFilter x:Range="R1C1:R' + (rows.length + 1) + 'C' + headers.length + '" xmlns="urn:schemas-microsoft-com:office:excel"/></Worksheet>';
+  D.xlsxColumnName = function (index) { var name = ''; while (index > 0) { index--; name = String.fromCharCode(65 + index % 26) + name; index = Math.floor(index / 26); } return name; };
+  D.xlsxSheet = function (sheet, index) {
+    var rows = [sheet.headers].concat(sheet.rows), hyperlinks = [], xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetViews><sheetView workbookViewId="0"/></sheetViews>';
+    if (sheet.widths && sheet.widths.length) { xml += '<cols>'; sheet.widths.forEach(function (width, colIndex) { xml += '<col min="' + (colIndex + 1) + '" max="' + (colIndex + 1) + '" width="' + Math.max(8, Math.min(60, Math.round(width / 7))) + '" customWidth="1"/>'; }); xml += '</cols>'; }
+    xml += '<sheetData>';
+    rows.forEach(function (row, rowIndex) {
+      xml += '<row r="' + (rowIndex + 1) + '">';
+      row.forEach(function (rawCell, colIndex) {
+        var cell = rawCell && typeof rawCell === 'object' && !Array.isArray(rawCell) ? rawCell : { value: rawCell };
+        var ref = D.xlsxColumnName(colIndex + 1) + (rowIndex + 1), value = cell.value == null || cell.value === '' ? '-' : cell.value;
+        if (cell.href) hyperlinks.push({ ref: ref, href: cell.href });
+        if (typeof value === 'number' && !cell.href) xml += '<c r="' + ref + '"' + (rowIndex === 0 ? ' s="1"' : '') + '><v>' + value + '</v></c>';
+        else xml += '<c r="' + ref + '" t="inlineStr" s="' + (rowIndex === 0 ? '1' : (cell.href ? '2' : '3')) + '"><is><t xml:space="preserve">' + D.xmlEsc(value) + '</t></is></c>';
+      });
+      xml += '</row>';
+    });
+    xml += '</sheetData><autoFilter ref="A1:' + D.xlsxColumnName(sheet.headers.length) + rows.length + '"/>';
+    if (hyperlinks.length) { xml += '<hyperlinks>'; hyperlinks.forEach(function (link, linkIndex) { xml += '<hyperlink ref="' + link.ref + '" r:id="rId' + (linkIndex + 1) + '"/>'; }); xml += '</hyperlinks>'; }
+    xml += '</worksheet>';
+    var rels = '';
+    if (hyperlinks.length) { rels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'; hyperlinks.forEach(function (link, linkIndex) { rels += '<Relationship Id="rId' + (linkIndex + 1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="' + D.xmlEsc(link.href) + '" TargetMode="External"/>'; }); rels += '</Relationships>'; }
+    return { xml: xml, rels: rels };
   };
-  D.weeklyExcelXml = function () {
+  D.zipStore = function (files) {
+    var encoder = new TextEncoder(), entries = [], offset = 0, crcTable = [];
+    for (var n = 0; n < 256; n++) { var c = n; for (var k = 0; k < 8; k++) c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1); crcTable[n] = c >>> 0; }
+    function crc32(data) { var crc = 0xffffffff; for (var i = 0; i < data.length; i++) crc = crcTable[(crc ^ data[i]) & 255] ^ (crc >>> 8); return (crc ^ 0xffffffff) >>> 0; }
+    function record(size) { return new Uint8Array(size); }
+    Object.keys(files).forEach(function (name) {
+      var nameBytes = encoder.encode(name), data = typeof files[name] === 'string' ? encoder.encode(files[name]) : files[name], crc = crc32(data), local = record(30 + nameBytes.length);
+      var view = new DataView(local.buffer); view.setUint32(0, 0x04034b50, true); view.setUint16(4, 20, true); view.setUint16(6, 0x0800, true); view.setUint16(8, 0, true); view.setUint32(14, crc, true); view.setUint32(18, data.length, true); view.setUint32(22, data.length, true); view.setUint16(26, nameBytes.length, true); local.set(nameBytes, 30);
+      entries.push({ nameBytes: nameBytes, data: data, crc: crc, local: local, offset: offset }); offset += local.length + data.length;
+    });
+    var centralParts = [], centralSize = 0;
+    entries.forEach(function (entry) { var central = record(46 + entry.nameBytes.length), view = new DataView(central.buffer); view.setUint32(0, 0x02014b50, true); view.setUint16(4, 20, true); view.setUint16(6, 20, true); view.setUint16(8, 0x0800, true); view.setUint32(16, entry.crc, true); view.setUint32(20, entry.data.length, true); view.setUint32(24, entry.data.length, true); view.setUint16(28, entry.nameBytes.length, true); view.setUint32(42, entry.offset, true); central.set(entry.nameBytes, 46); centralParts.push(central); centralSize += central.length; });
+    var end = record(22), endView = new DataView(end.buffer); endView.setUint32(0, 0x06054b50, true); endView.setUint16(8, entries.length, true); endView.setUint16(10, entries.length, true); endView.setUint32(12, centralSize, true); endView.setUint32(16, offset, true);
+    var output = record(offset + centralSize + end.length), cursor = 0; entries.forEach(function (entry) { output.set(entry.local, cursor); cursor += entry.local.length; output.set(entry.data, cursor); cursor += entry.data.length; }); centralParts.forEach(function (central) { output.set(central, cursor); cursor += central.length; }); output.set(end, cursor); return output;
+  };
+  D.xlsxWorkbook = function (sheets) {
+    var files = {}, contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>', workbook = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>', workbookRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">';
+    sheets.forEach(function (sheet, index) { var number = index + 1, built = D.xlsxSheet(sheet, number); files['xl/worksheets/sheet' + number + '.xml'] = built.xml; if (built.rels) files['xl/worksheets/_rels/sheet' + number + '.xml.rels'] = built.rels; contentTypes += '<Override PartName="/xl/worksheets/sheet' + number + '.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'; workbook += '<sheet name="' + D.xmlEsc(sheet.name) + '" sheetId="' + number + '" r:id="rId' + number + '"/>'; workbookRels += '<Relationship Id="rId' + number + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet' + number + '.xml"/>'; });
+    workbook += '</sheets></workbook>'; workbookRels += '<Relationship Id="rId' + (sheets.length + 1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>'; contentTypes += '</Types>';
+    files['[Content_Types].xml'] = contentTypes; files['_rels/.rels'] = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'; files['xl/workbook.xml'] = workbook; files['xl/_rels/workbook.xml.rels'] = workbookRels;
+    files['xl/styles.xml'] = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="3"><font><sz val="10"/><name val="Segoe UI"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="10"/><name val="Segoe UI"/></font><font><u/><color rgb="FF0563C1"/><sz val="10"/><name val="Segoe UI"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF132039"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="4"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
+    return D.zipStore(files);
+  };
+  D.weeklyXlsx = function () {
     var caseHeaders = ['Rack', 'Case ID', 'Title', 'Case State', 'Changed Date', 'Changed This Week', 'Snapshot Change', 'Latest Test Result', 'Result Date', 'Test Run ID', 'Priority', 'Sample Size', 'Number of Cycles', 'Test Duration', 'Linked Bugs', 'Azure DevOps URL'];
     var caseRows = D.weeklyRows().map(function (row) { return [row.rack, { value: row.id, href: row.url }, row.title, row.state, row.changed, row.changedThisWeek, row.snapshotChange, row.result, row.resultDate, row.runId, row.priority, row.sampleSize, row.cycles, row.duration, row.bugs, { value: row.url, href: row.url }]; });
     var runHeaders = ['Run ID', 'Name', 'Test Plan ID', 'Test Plan', 'State', 'Started', 'Completed', 'Result Count', 'Status', 'URL'];
     var runRows = (D.S.testResults.runs || []).map(function (run) { return [{ value: run.id, href: run.url }, run.name, run.planId || '-', run.planName || '-', run.state, D.fmt(run.startedDate), D.fmt(run.completedDate), run.resultCount, run.error || 'Loaded', { value: run.url, href: run.url }]; });
-    var trend = D.S.analyticsTrend && D.S.analyticsTrend.days || [], states = {}, trendRows = [];
-    trend.forEach(function (day) { Object.keys(day.counts || {}).forEach(function (state) { states[state] = 1; }); }); var stateList = D.orderStates(Object.keys(states));
-    trend.forEach(function (day) { trendRows.push([day.date].concat(stateList.map(function (state) { return day.counts[state] || 0; }))); });
     var comparison = D.S.snapshotComparison || {}, changeRows = [];
     [['Added', comparison.added || []], ['Removed', comparison.removed || []], ['State changed', comparison.stateChanged || []], ['Updated this week', comparison.updatedThisWeek || []]].forEach(function (group) { group[1].forEach(function (item) { changeRows.push([group[0], { value: item.id, href: D.wiUrl(item.id) }, item.title, item.rack, item.beforeState || '-', item.afterState || item.state || '-', D.fmt(item.changed)]); }); });
-    var xml = '<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">'
-      + '<Styles><Style ss:ID="Default" ss:Name="Normal"><Alignment ss:Vertical="Top" ss:WrapText="1"/><Font ss:FontName="Segoe UI" ss:Size="10"/></Style><Style ss:ID="Header"><Font ss:Bold="1" ss:Color="#FFFFFF"/><Interior ss:Color="#132039" ss:Pattern="Solid"/></Style><Style ss:ID="Text"/><Style ss:ID="Link"><Font ss:Color="#0563C1" ss:Underline="Single"/></Style></Styles>';
-    xml += D.excelWorksheet('Weekly Cases', caseHeaders, caseRows) + D.excelWorksheet('Test Runs', runHeaders, runRows)
-      + D.excelWorksheet('State Trend', ['Date'].concat(stateList), trendRows) + D.excelWorksheet('Snapshot Changes', ['Change', 'Case ID', 'Title', 'Rack', 'Before', 'After', 'Changed'], changeRows) + '</Workbook>';
-    return { xml: xml, count: caseRows.length };
+    return { bytes: D.xlsxWorkbook([
+      { name: 'Weekly Cases', headers: caseHeaders, rows: caseRows, widths: [70, 72, 360, 90, 110, 95, 130, 110, 110, 80, 70, 85, 100, 95, 220, 300] },
+      { name: 'Test Runs', headers: runHeaders, rows: runRows, widths: [72, 220, 80, 180, 80, 110, 110, 90, 120, 300] },
+      { name: 'Snapshot Changes', headers: ['Change', 'Case ID', 'Title', 'Rack', 'Before', 'After', 'Changed'], rows: changeRows, widths: [100, 72, 360, 90, 90, 90, 110] }
+    ]), count: caseRows.length };
   };
-  D.exportWeeklyExcel = function () { var report = D.weeklyExcelXml(); D.downloadBlob(report.xml, 'application/vnd.ms-excel;charset=utf-8', 'C4143-Weekly-Report-' + D.reportStamp() + '.xls'); D.setStatus('Downloaded weekly Excel workbook with ' + report.count + ' case rows and four worksheets.', 'info'); };
+  D.exportWeeklyExcel = function () { var report = D.weeklyXlsx(); D.downloadBlob(report.bytes, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'C4143-Weekly-Report-' + D.reportStamp() + '.xlsx'); D.setStatus('Downloaded XLSX workbook with ' + report.count + ' case rows and three unfrozen worksheets.', 'info'); };
   D.insightsPanel = function () {
     var wrap = D.el('div'), cases = D.allCases(), test = D.S.testResults || { status: 'idle', runs: [] }, summary = test.summary || D.testResultSummary(cases), comparison = D.S.snapshotComparison || { status: 'first', added: [], removed: [], stateChanged: [], updatedThisWeek: [] };
     var sticky = D.el('div', 'panel-sticky'), cards = D.el('div', 'cards');
     var resultAvailable = test.status === 'ok';
-    [D.card('ANALYTICS DAYS', D.S.analyticsTrend && D.S.analyticsTrend.status === 'ok' ? D.S.analyticsTrend.days.length : 'Unavailable', '#38bdf8'),
-      D.card('RESULTS / CASES', resultAvailable ? summary.matched + ' / ' + summary.cases : 'Unavailable', '#60a5fa'),
+    [D.card('RESULTS / CASES', resultAvailable ? summary.matched + ' / ' + summary.cases : 'Unavailable', '#60a5fa'),
       D.card('RESULT PASSED / RATE', resultAvailable ? D.outcomeValue(summary.passed, summary.passRate) : 'Unavailable', '#34d399'),
       D.card('RESULT FAILED / RATE', resultAvailable ? D.outcomeValue(summary.failed, summary.failRate) : 'Unavailable', '#fb7185'),
       D.card('NO TEST RESULT', resultAvailable ? summary.noResult : 'Unavailable', '#fbbf24'),
       D.card('UPDATED THIS WEEK', (comparison.updatedThisWeek || []).length, '#c084fc')].forEach(function (card) { cards.appendChild(card); });
     sticky.appendChild(cards); wrap.appendChild(sticky);
-    var toolbar = D.el('div', 'insights-toolbar'), csv = D.el('button', 'primary', 'Download weekly CSV'), excel = D.el('button', 'primary', 'Download weekly Excel (.xls)');
+    var toolbar = D.el('div', 'insights-toolbar'), csv = D.el('button', 'primary', 'Download weekly CSV'), excel = D.el('button', 'primary', 'Download weekly Excel (.xlsx)');
     csv.addEventListener('click', D.exportWeeklyCsv); excel.addEventListener('click', D.exportWeeklyExcel); toolbar.appendChild(csv); toolbar.appendChild(excel); toolbar.appendChild(D.el('span', 'small', 'Reports include all Racks, latest Test Result, weekly changes, metrics, Bugs and hyperlinks.')); wrap.appendChild(toolbar);
-    var trendBox = D.box('Daily Test Case State trend — Analytics OData WorkItemSnapshot (30 days)'); trendBox.appendChild(D.analyticsLineChart(D.S.analyticsTrend)); wrap.appendChild(trendBox);
     var resultGrid = D.el('div', 'grid'), resultBox = D.box('Real Pass / Fail — latest Test Result per Case');
     resultBox.appendChild(D.el('div', 'metric-total', resultAvailable ? ('Denominator: ' + summary.denominator + ' latest decisive results · ' + summary.other + ' other outcomes · ' + summary.noResult + ' cases without a result') : ('Unavailable: ' + (test.error || 'not loaded'))));
     resultBox.appendChild(D.horizontalBarChart('Latest Test Results', [
@@ -1111,12 +1048,6 @@
   D.xmlEsc = function (value) {
     return String(value == null ? '' : value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
   };
-  D.excelCell = function (value, style, numeric, href) {
-    var raw = value == null || value === '' ? '-' : String(value), isNumber = numeric && /^-?\d+(?:\.\d+)?$/.test(raw);
-    var attrs = style ? ' ss:StyleID="' + D.xmlEsc(style) + '"' : '';
-    if (href) attrs += ' ss:HRef="' + D.xmlEsc(href) + '"';
-    return '<Cell' + attrs + '><Data ss:Type="' + (isNumber ? 'Number' : 'String') + '">' + D.xmlEsc(raw) + '</Data></Cell>';
-  };
   D.suiteExportRows = function () {
     var rows = [];
     D.featureInventory().forEach(function (group) {
@@ -1135,39 +1066,19 @@
     });
     return rows;
   };
-  D.suiteExcelXml = function () {
+  D.suiteXlsx = function () {
     var rows = D.suiteExportRows();
     var headers = ['Rack', 'Case ID', 'Title', 'Test Feature', 'State', 'Changed Date', 'Priority', 'Sample Size', 'Number of Cycles', 'Test Duration', 'Script type', 'CRC SDK', 'IGS Owner', 'Linked Bugs', 'Comments', 'Azure DevOps URL'];
     var widths = [70, 72, 360, 90, 90, 110, 60, 80, 90, 95, 80, 80, 110, 240, 260, 300];
-    var xml = '<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?>'
-      + '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">'
-      + '<Styles><Style ss:ID="Default" ss:Name="Normal"><Alignment ss:Vertical="Top"/><Font ss:FontName="Segoe UI" ss:Size="10"/></Style>'
-      + '<Style ss:ID="Header"><Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/><Font ss:FontName="Segoe UI" ss:Size="10" ss:Bold="1" ss:Color="#FFFFFF"/><Interior ss:Color="#132039" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#38BDF8"/></Borders></Style>'
-      + '<Style ss:ID="Text"><Alignment ss:Vertical="Top" ss:WrapText="1"/></Style><Style ss:ID="Link"><Font ss:Color="#0563C1" ss:Underline="Single"/><Alignment ss:Vertical="Top" ss:WrapText="1"/></Style></Styles>'
-      + '<Worksheet ss:Name="Rack 1 Features"><Table ss:ExpandedColumnCount="16" ss:ExpandedRowCount="' + (rows.length + 1) + '" x:FullColumns="1" x:FullRows="1">';
-    widths.forEach(function (width) { xml += '<Column ss:AutoFitWidth="0" ss:Width="' + width + '"/>'; });
-    xml += '<Row ss:Height="30">'; headers.forEach(function (header) { xml += D.excelCell(header, 'Header'); }); xml += '</Row>';
-    rows.forEach(function (row) {
-      xml += '<Row>'
-        + D.excelCell(row.rack, 'Text') + D.excelCell(row.id, 'Link', false, row.url) + D.excelCell(row.title, 'Text')
-        + D.excelCell(row.feature, 'Text') + D.excelCell(row.state, 'Text') + D.excelCell(row.changed, 'Text') + D.excelCell(row.priority, 'Text')
-        + D.excelCell(row.sampleSize, 'Text', true) + D.excelCell(row.cycles, 'Text', true) + D.excelCell(row.duration, 'Text')
-        + D.excelCell(row.scriptType, 'Text') + D.excelCell(row.crcSdk, 'Text') + D.excelCell(row.igsOwner, 'Text')
-        + D.excelCell(row.bugs, 'Text') + D.excelCell(row.comments, 'Text') + D.excelCell(row.url, 'Link', false, row.url) + '</Row>';
-    });
-    xml += '</Table><WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel"><FreezePanes/><FrozenNoSplit/><SplitHorizontal>1</SplitHorizontal><TopRowBottomPane>1</TopRowBottomPane><ProtectObjects>False</ProtectObjects><ProtectScenarios>False</ProtectScenarios></WorksheetOptions>'
-      + '<AutoFilter x:Range="R1C1:R' + (rows.length + 1) + 'C16" xmlns="urn:schemas-microsoft-com:office:excel"/></Worksheet></Workbook>';
-    return { xml: xml, count: rows.length };
+    var dataRows = rows.map(function (row) { return [row.rack, { value: row.id, href: row.url }, row.title, row.feature, row.state, row.changed, row.priority, row.sampleSize, row.cycles, row.duration, row.scriptType, row.crcSdk, row.igsOwner, row.bugs, row.comments, { value: row.url, href: row.url }]; });
+    return { bytes: D.xlsxWorkbook([{ name: 'Rack 1 Features', headers: headers, rows: dataRows, widths: widths }]), count: rows.length };
   };
   D.exportSuiteExcel = function () {
-    var result = D.suiteExcelXml(), now = new Date();
+    var result = D.suiteXlsx(), now = new Date();
     function pad(value) { return value < 10 ? '0' + value : String(value); }
     var stamp = now.getFullYear() + pad(now.getMonth() + 1) + pad(now.getDate()) + '-' + pad(now.getHours()) + pad(now.getMinutes());
-    var blob = new Blob([result.xml], { type: 'application/vnd.ms-excel;charset=utf-8' });
-    var link = D.el('a'); link.href = URL.createObjectURL(blob); link.download = 'C4143-Rack1-Test-Features-' + stamp + '.xls';
-    document.body.appendChild(link); link.click(); link.remove();
-    setTimeout(function () { URL.revokeObjectURL(link.href); }, 5000);
-    D.setStatus('Downloaded Excel workbook with ' + result.count + ' Rack 1 Test Feature case rows.', 'info');
+    D.downloadBlob(result.bytes, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'C4143-Rack1-Test-Features-' + stamp + '.xlsx');
+    D.setStatus('Downloaded unfrozen XLSX workbook with ' + result.count + ' Rack 1 Test Feature case rows.', 'info');
   };
   D.featureCaseTable = function (entries, featureName) {
     var scroll = D.el('div', 'feature-table-scroll');
@@ -1226,7 +1137,7 @@
     wrap.appendChild(D.el('p', 'suite-intro', 'This list is rebuilt directly from the current Rack 1 Feature hierarchy after every query. Every Rack 1 Test Case is grouped under its nearest parent Test Feature and uses the same live State, Bug and metric data as the Rack 1 tab.'));
     var toolbar = D.el('div', 'suite-toolbar');
     var expand = D.el('button', null, 'Expand all'), collapse = D.el('button', null, 'Collapse all');
-    var download = D.el('button', 'primary', 'Download Excel (.xls)'), search = D.el('input');
+    var download = D.el('button', 'primary', 'Download Excel (.xlsx)'), search = D.el('input');
     download.id = 'suiteExcelBtn'; download.title = 'Download all Rack 1 Test Feature case fields for Excel';
     search.placeholder = 'Search feature / case / state / field …';
     toolbar.appendChild(expand); toolbar.appendChild(collapse); toolbar.appendChild(download); toolbar.appendChild(search); wrap.appendChild(toolbar);
@@ -1521,16 +1432,15 @@
     var tf = allCases.filter(D.inRange).length, totalLinkedBugs = D.uniqueBugs(allCases).length;
     var bugNote = D.S.bugLinkWarning ? ' Bug link lookup was skipped, but the core dashboard data is current.' : '';
     var metricNote = D.S.metricFieldWarning ? ' Some custom Test Case metric fields were unavailable; the rest of the dashboard is current.' : '';
-    var analyticsNote = D.S.analyticsTrend && D.S.analyticsTrend.status === 'error' ? ' Analytics OData trend is unavailable; open Insights for details.' : '';
     var testNote = D.S.testResults && D.S.testResults.status === 'error' ? ' Test Runs/Results are unavailable; open Insights for details.' : '';
     var rl = (D.RANGES.filter(function (x) { return x[0] === D.S.range; })[0] || ['', ''])[1];
     var ml = (D.MODES.filter(function (x) { return x[0] === D.S.mode; })[0] || ['', ''])[1];
     var src = D.S.snapshotMode ? ('Offline snapshot (' + D.fmt(D.S.loadedAt) + ')') : (ml + ' · ' + D.fmt(D.S.loadedAt) + ' query re-run');
     requestAnimationFrame(D.fitCardValues);
     if (!tf && allCases.length) {
-      D.setStatus(src + ': loaded ' + allCases.length + ' test cases, but nothing was updated within "' + rl + '" — charts are empty. Latest change: ' + D.fmt(D.latest(allCases)) + '.' + bugNote + metricNote + analyticsNote + testNote, 'warn');
+      D.setStatus(src + ': loaded ' + allCases.length + ' test cases, but nothing was updated within "' + rl + '" — charts are empty. Latest change: ' + D.fmt(D.latest(allCases)) + '.' + bugNote + metricNote + testNote, 'warn');
     } else if (D.S.racks.length) {
-      D.setStatus(src + ': ' + D.S.racks.length + ' racks, ' + allCases.length + ' test cases, ' + totalLinkedBugs + ' linked Bugs; "' + rl + '" contains ' + tf + ' updated items.' + bugNote + metricNote + analyticsNote + testNote, (D.S.bugLinkWarning || D.S.metricFieldWarning || analyticsNote || testNote) ? 'warn' : 'info');
+      D.setStatus(src + ': ' + D.S.racks.length + ' racks, ' + allCases.length + ' test cases, ' + totalLinkedBugs + ' linked Bugs; "' + rl + '" contains ' + tf + ' updated items.' + bugNote + metricNote + testNote, (D.S.bugLinkWarning || D.S.metricFieldWarning || testNote) ? 'warn' : 'info');
     }
   };
   D.load = async function () {
@@ -1542,7 +1452,6 @@
         return;
       }
       D.S.racks = s.racks; D.S.loadedAt = s.savedAt || null; D.S.snapshotMode = true; D.S.bugLinkWarning = ''; D.S.metricFieldWarning = '';
-      D.S.analyticsTrend = s.analyticsTrend || { status: 'unavailable', days: [], error: 'This snapshot predates Analytics trend storage.' };
       D.S.testResults = s.testResults || { status: 'unavailable', runs: [], error: 'This snapshot predates Test Result storage.' };
       D.S.snapshotComparison = s.snapshotComparison || { status: 'first', previousAt: null, currentAt: D.S.loadedAt, added: [], removed: [], stateChanged: [], updatedThisWeek: [] };
       document.getElementById('updated').textContent = 'Snapshot: ' + D.fmt(D.S.loadedAt);
@@ -1578,7 +1487,7 @@
   D.snapshotPayload = function () {
     return {
       savedAt: D.S.loadedAt || new Date().toISOString(), racks: D.S.racks,
-      analyticsTrend: D.S.analyticsTrend, testResults: D.S.testResults, snapshotComparison: D.S.snapshotComparison
+      testResults: D.S.testResults, snapshotComparison: D.S.snapshotComparison
     };
   };
   D.snapshotCaseMap = function (snapshot) {
@@ -1628,7 +1537,7 @@
       if (k === 'EMBEDDED') return;
       var v = D[k];
       if (typeof v === 'function') parts.push('D.' + k + ' = ' + v.toString() + ';');
-      else if (k === 'S') parts.push('D.S = {racks:[],loadedAt:null,range:"all",chartType:"pie",panels:[],active:0,mode:"live",analyticsTrend:{status:"idle",days:[]},testResults:{status:"idle",runs:[]},snapshotComparison:null};');
+      else if (k === 'S') parts.push('D.S = {racks:[],loadedAt:null,range:"all",chartType:"pie",panels:[],active:0,mode:"live",testResults:{status:"idle",runs:[]},snapshotComparison:null};');
       else if (k === '_timer' || k === '_statusFadeTimer' || k === '_statusHideTimer') return;
       else parts.push('D.' + k + ' = ' + JSON.stringify(v) + ';');
     });

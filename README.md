@@ -1,10 +1,10 @@
 # Azure DevOps State Monitoring
 
-C4143 DV-Scale Rack Test Status Dashboard 提供 Tampermonkey userscript 與原生 Azure DevOps Extension。它會讀取 Query、Work Items、Analytics OData、Test Runs／Results 與 Test Plans，建立 Overview、Rack 1～5、Insights、Test Features、State、真實測試 Outcome、Priority、Bug、Sample Size、Test Duration、`Number_of_cycles`、週報與快照差異統計。
+C4143 DV-Scale Rack Test Status Dashboard 提供 Tampermonkey userscript 與原生 Azure DevOps Extension。它會讀取 Query、Work Items、Test Runs／Results 與 Test Plans，建立 Overview、Rack 1～5、Insights、Test Features、State、真實測試 Outcome、Priority、Bug、Sample Size、Test Duration、`Number_of_cycles`、週報與快照差異統計。
 
 ## 目前版本
 
-- Dashboard：[C4143-DVScale-Dashboard.user.js](./C4143-DVScale-Dashboard.user.js)（固定安裝網址，腳本內版本 v1.9.0）
+- Dashboard：[C4143-DVScale-Dashboard.user.js](./C4143-DVScale-Dashboard.user.js)（固定安裝網址，腳本內版本 v1.9.2）
 - 開發與維護文件：[C4143-DVScale-Dashboard-HANDOFF.md](./C4143-DVScale-Dashboard-HANDOFF.md)
 - Azure DevOps Extension：[azure-devops-extension](./azure-devops-extension)；可安裝 VSIX 位於 `release/C4143-DVScale-Dashboard-Extension.vsix`
 - Azure DevOps organization：`https://azurecsi.visualstudio.com`
@@ -22,7 +22,9 @@ v1.7.2 將 Overview、Rack 1～5 與最後一頁改為左側直式導覽。分�
 
 v1.7.3 修正 re-query 完成提示的顯示時間：藍色資訊與黃色警告會在 4.5 秒開始淡出、5.2 秒完全隱藏；只有紅色載入錯誤會保留，方便使用者閱讀與排除問題。
 
-v1.8.1 將固定範圍縮小為控制列、左側分頁與摘要卡；圓餅圖、比較圖及以下內容會正常跟隨頁面捲動。所有摘要卡強制維持單列，空間不足時只在卡片列內水平捲動，不會換到下一列。**Download Excel (.xls)** 改為輸出 Rack 1 Test Features 的 16 欄 Excel 2003 XML 工作表，包含凍結標題列、AutoFilter 與 Azure DevOps hyperlink，無需外部 CDN。
+v1.8.1 將固定範圍縮小為控制列、左側分頁與摘要卡；圓餅圖、比較圖及以下內容會正常跟隨頁面捲動。所有摘要卡強制維持單列，空間不足時只在卡片列內水平捲動，不會換到下一列。
+
+v1.9.2 將 Rack 1 Test Features 與週報的 Excel 匯出改成真正的 Office Open XML `.xlsx`，不再使用 Excel 2003 XML `.xls`。所有 worksheet 均取消凍結窗格，保留 AutoFilter、欄寬、標題樣式及 Azure DevOps hyperlinks。
 
 v1.8.4 讓同一列摘要卡維持完全相同的寬度與高度，並依每個數值的實際長度自動微調字級。`290 / 290`、Pass／Fail 數量與百分比等較長內容會完整顯示，不再使用省略號；窄螢幕仍維持單列，改由卡片列內的水平捲動查看其餘卡片。
 
@@ -34,13 +36,12 @@ v1.8.6 移除所有固定 Expected Case 數量與 Coverage warning。Case 新增
 
 v1.9.0 新增左側 `Insights` 分頁：
 
-- **30 天 State 趨勢**：使用 Analytics OData `WorkItemSnapshot`，依日期與 State 彙總當次 Query 中的 Test Cases，以折線圖顯示；圖下可展開可存取的資料表。
 - **真實 Pass／Fail**：讀取最近 28 天的 Test Runs、Test Results 與 Test Plans。每個 Case 只取最新結果，Pass／Fail Rate 的分母只包含 `Passed` 與失敗類 Outcome；沒有 Test Result 的 Case 會分開顯示，不會誤當 Fail。
 - **Case 結果回填**：Rack 與 Test Features 的每個 Case 顯示最新 Outcome，可連到對應 Test Run；優先以 Case ID 對應，僅在 Title 唯一且完全相符時才退回 Title 對應。
 - **與上次快照比較**：列出 Added、Removed、State Changed，以及本週有更新的 Cases。第一次使用只有基準快照；下一次重新查詢後才會產生差異。
-- **週報匯出**：`Download weekly CSV` 匯出全部 Case 明細；`Download weekly Excel (.xls)` 另外包含 Test Runs、State Trend、Snapshot Changes 四個工作表，保留 Azure DevOps hyperlinks。
+- **週報匯出**：`Download weekly CSV` 匯出全部 Case 明細；`Download weekly Excel (.xlsx)` 另外包含 Weekly Cases、Test Runs、Snapshot Changes 三個未凍結的工作表，保留 Azure DevOps hyperlinks。
 
-Analytics 是跨 `analytics.dev.azure.com` 讀取；Tampermonkey 更新到 v1.9.0 時會要求允許這個唯讀網域。若使用者沒有 Analytics 或 Test 權限，Insights 會顯示該資料源 unavailable，但既有 Query、Overview、Rack 與 Test Features 仍可使用。
+v1.9.1 移除跨網域 Analytics OData 趨勢與相關 PAT／登入流程，避免 Chrome 顯示原生帳密視窗。Insights 仍保留真實 Test Results、週報與快照比較。
 
 ## 發布成網頁與自動連動
 
@@ -142,7 +143,7 @@ npm install
 npm run package
 ```
 
-完成後將 `release/C4143-DVScale-Dashboard-Extension.vsix` 上傳到 Visual Studio Marketplace，維持 Private、分享給 `azurecsi` organization，再從 Azure DevOps 安裝。Extension 只申請 `vso.work`、`vso.test`、`vso.analytics` 讀取範圍；Widget 會顯示 Live Query 摘要並連到完整 Hub。
+完成後將 `release/C4143-DVScale-Dashboard-Extension.vsix` 上傳到 Visual Studio Marketplace，維持 Private、分享給 `azurecsi` organization，再從 Azure DevOps 安裝。Extension 只申請 `vso.work`、`vso.test` 讀取範圍；Widget 會顯示 Live Query 摘要並連到完整 Hub。
 
 ## Dashboard 更新方式
 

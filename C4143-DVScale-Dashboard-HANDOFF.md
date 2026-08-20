@@ -5,7 +5,7 @@
 | 文件版本 | 2.0 |
 | 初版日期 | 2026-07-28 |
 | 最後更新 | 2026-08-20 |
-| 最新腳本 | `C4143-DVScale-Dashboard.user.js`（v1.9.0） |
+| 最新腳本 | `C4143-DVScale-Dashboard.user.js`（v1.9.2） |
 | 最新腳本大小 | 131682 bytes（約 128.6 KB） |
 | 執行環境 | Chrome + Tampermonkey，需已登入 Azure DevOps（azurecsi） |
 
@@ -48,7 +48,7 @@
 
 | 檔案 / Key | 說明 |
 | --- | --- |
-| `C4143-DVScale-Dashboard.user.js` | 最新主交付物與固定安裝入口，Tampermonkey userscript v1.9.0 |
+| `C4143-DVScale-Dashboard.user.js` | 最新主交付物與固定安裝入口，Tampermonkey userscript v1.9.2 |
 | `azure-devops-extension/` | Azure Test Plans Hub 與 Dashboard Widget 原始碼、manifest 與建置流程 |
 | `release/C4143-DVScale-Dashboard-Extension.vsix` | 可上傳 Visual Studio Marketplace 的 Private Extension 套件 |
 | `C4143-DVScale-Dashboard.user_v1.6.1-bug-priority-severity.js` | 上一個穩定版本，保留供回退與比對 |
@@ -306,6 +306,8 @@ document-idle → hash 含 dvdash？ → D.boot()
 | v1.8.5 | Pass／Fail 百分比最多一位小數；數量為零時只顯示 `0%` |
 | v1.8.6 | 移除固定 Expected Case 數量與 Coverage warning，只顯示 Query 實際總數；保留 Test Features 與 Rack 1 的即時同步比較 |
 | v1.9.0 | 新增 Analytics 30 天 State 趨勢、Test Runs／Results／Plans 真實 Outcome、週報 CSV／Excel、上次快照差異、Case Result 回填，以及 Azure DevOps Hub／Widget Extension |
+| v1.9.1 | 移除 Analytics OData 趨勢、跨網域權限與 PAT／登入流程；保留 Test Results、週報及快照比較，Extension scopes 縮減為 `vso.work`、`vso.test` |
+| v1.9.2 | 週報與 Rack 1 Test Features 匯出改為真正的 `.xlsx`；所有 worksheet 取消凍結窗格，保留 AutoFilter、欄寬與 hyperlinks |
 
 ---
 
@@ -761,10 +763,8 @@ Tampermonkey 會按設定的更新間隔讀取固定 URL，比較 `@version`，�
 
 ### 25.1 Analytics OData 每日 State 趨勢
 
-- `Insights` 分頁使用 `https://analytics.dev.azure.com/{organization}/{project}/_odata/v3.0-preview/WorkItemSnapshot`。
-- 先以 Live Query 當次取得的 Test Case ID 建立篩選，再用 OData `$apply=filter(...)/groupby((DateSK,State),aggregate($count as Count))` 彙總最近 30 天；不會把 Query 以外的 Test Cases 混入趨勢。
-- 折線圖採原生 SVG、既有 State 語意色、直接日期刻度、節點 tooltip，並提供可展開的表格作為精確值與無障礙 fallback。
-- Tampermonkey metadata 新增 `GM_xmlhttpRequest` 與 `@connect analytics.dev.azure.com`。程式先嘗試標準 `fetch`，跨網域被擋時才使用 Tampermonkey 的唯讀請求；Extension 則使用 Azure DevOps SDK access token。
+- v1.9.1 已移除 Analytics OData 趨勢、圖表、跨網域 metadata 與認證流程，避免 HTTP authentication challenge 觸發瀏覽器原生帳密視窗。
+- Insights 保留 Test Results、週報與快照比較，不再連線至 `analytics.dev.azure.com`。
 
 ### 25.2 真實 Test Run／Result／Plan
 
@@ -777,20 +777,20 @@ Tampermonkey 會按設定的更新間隔讀取固定 URL，比較 `@version`，�
 ### 25.3 週報 CSV／Excel
 
 - **Download weekly CSV**：輸出所有 Rack Case 的 State、Changed Date、本週更新、快照差異、最新 Test Result、Run ID、Priority、Sample Size、Number of Cycles、Duration、Linked Bugs 與 Work Item URL。
-- **Download weekly Excel (.xls)**：使用 Excel 2003 XML，不依賴外部套件；包含 `Weekly Cases`、`Test Runs`、`State Trend`、`Snapshot Changes` 四張工作表，含凍結標題列、AutoFilter 與 hyperlinks。
+- **Download weekly Excel (.xlsx)**：使用 Office Open XML；包含 `Weekly Cases`、`Test Runs`、`Snapshot Changes` 三張未凍結的工作表，含 AutoFilter、欄寬與 hyperlinks。
 - Test Features 原本的 Rack 1 Excel 仍保留，兩個匯出用途不同。
 
 ### 25.4 與上次快照比較
 
 - 每次 Live Query 完成後，先讀 `dvdashSnapshot` 作為 previous，再計算 Added、Removed、State Changed 與 Updated This Week，最後才覆寫目前 snapshot。
-- `dvdashSnapshotHistory` 保留最多 14 個每日快照；Offline snapshot 也會攜帶 Analytics、Test Results 與比較結果。
+- `dvdashSnapshotHistory` 保留最多 14 個每日快照；Offline snapshot 也會攜帶 Test Results 與比較結果。
 - 第一次執行只能建立 baseline，`Insights` 會明確顯示尚無 previous snapshot，而不是輸出假的 0 變更結論。
 
 ### 25.5 Azure DevOps Extension 與 Widget
 
 - `azure-devops-extension/` 使用 `azure-devops-extension-sdk`、TypeScript 與 esbuild，將同一份 userscript core 打包為 Azure Test Plans 的 **C4143 DV-Scale** Hub。
 - 同一個 VSIX 也包含 **C4143 DV-Scale Status** Dashboard Widget；Widget 執行 Live Query、顯示 Test Case State 橫條摘要，並連到完整 Hub。
-- manifest 只要求唯讀 `vso.work`、`vso.test`、`vso.analytics` scopes；不把 PAT 或 token 寫入 repo。Marketplace 上傳前必須確認 `publisher` 與實際 Publisher ID 相同，先保持 Private 並分享給 `azurecsi` organization。
+- manifest 只要求唯讀 `vso.work`、`vso.test` scopes；不把 PAT 或 token 寫入 repo。Marketplace 上傳前必須確認 `publisher` 與實際 Publisher ID 相同，先保持 Private 並分享給 `azurecsi` organization。
 - 建置方式：進入 `azure-devops-extension` 後執行 `npm install`、`npm run package`；輸出為 `release/C4143-DVScale-Dashboard-Extension.vsix`。
 
 ### 25.6 驗證狀態
