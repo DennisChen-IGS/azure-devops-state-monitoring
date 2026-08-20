@@ -5,11 +5,11 @@
 | 文件版本 | 2.0 |
 | 初版日期 | 2026-07-28 |
 | 最後更新 | 2026-08-20 |
-| 最新腳本 | `C4143-DVScale-Dashboard.user.js`（v1.8.6） |
-| 最新腳本大小 | 96194 bytes（約 93.9 KB） |
+| 最新腳本 | `C4143-DVScale-Dashboard.user.js`（v1.9.0） |
+| 最新腳本大小 | 131682 bytes（約 128.6 KB） |
 | 執行環境 | Chrome + Tampermonkey，需已登入 Azure DevOps（azurecsi） |
 
-> 第 1～12 節保留 v1.2 建置時的原始設計與調查紀錄；第 13 節為 v1.3～v1.6.2 的後續開發補充，第 14～23 節記錄 v1.7.0～v1.8.5 的演進，第 24 節為 v1.8.6 移除固定 Expected Case 數量與網站發布方式。
+> 第 1～12 節保留 v1.2 建置時的原始設計與調查紀錄；第 13 節為 v1.3～v1.6.2 的後續開發補充，第 14～23 節記錄 v1.7.0～v1.8.5 的演進，第 24 節為 v1.8.6，第 25 節為 v1.9.0 Insights、報表、快照比較與 Azure DevOps Extension。前面章節中的「未完成」為當時狀態，最新完成狀態以第 25 節為準。
 
 > **2026-08-14 的 Live Query 曾驗證到 5 Racks × 每櫃 58 Test Cases = 290 Test Cases；這是當時的查詢結果，不再作為固定 Expected 基準。v1.8.6 只顯示每次 Query 的實際數量。文件中的 54／270、58／290 等數值均為各版本當時的驗證紀錄。**
 
@@ -48,7 +48,9 @@
 
 | 檔案 / Key | 說明 |
 | --- | --- |
-| `C4143-DVScale-Dashboard.user.js` | 最新主交付物與固定安裝入口，Tampermonkey userscript v1.8.6 |
+| `C4143-DVScale-Dashboard.user.js` | 最新主交付物與固定安裝入口，Tampermonkey userscript v1.9.0 |
+| `azure-devops-extension/` | Azure Test Plans Hub 與 Dashboard Widget 原始碼、manifest 與建置流程 |
+| `release/C4143-DVScale-Dashboard-Extension.vsix` | 可上傳 Visual Studio Marketplace 的 Private Extension 套件 |
 | `C4143-DVScale-Dashboard.user_v1.6.1-bug-priority-severity.js` | 上一個穩定版本，保留供回退與比對 |
 | `C4143-DVScale-Dashboard-snapshot.html` | 由頁面上 **Export offline snapshot .html** 按鈕產生的離線單檔（含資料 + 程式碼） |
 | `HANDOFF.md` | 本文件 |
@@ -303,6 +305,7 @@ document-idle → hash 含 dvdash？ → D.boot()
 | v1.8.4 | 同列摘要卡維持等寬、數值依可用空間縮放並完整顯示 |
 | v1.8.5 | Pass／Fail 百分比最多一位小數；數量為零時只顯示 `0%` |
 | v1.8.6 | 移除固定 Expected Case 數量與 Coverage warning，只顯示 Query 實際總數；保留 Test Features 與 Rack 1 的即時同步比較 |
+| v1.9.0 | 新增 Analytics 30 天 State 趨勢、Test Runs／Results／Plans 真實 Outcome、週報 CSV／Excel、上次快照差異、Case Result 回填，以及 Azure DevOps Hub／Widget Extension |
 
 ---
 
@@ -726,8 +729,6 @@ Tampermonkey 會按設定的更新間隔讀取固定 URL，比較 `@version`，�
 - Rack 1／Overview 分頁切換正常；Browser Console 0 Error／0 Warning。
 - JavaScript `node --check` 與 `git diff --check` 通過。
 
----
-
 ## 24. 2026-08-20 實際 Case 數量與網站發布方式（v1.8.6）
 
 ### 24.1 Expected Case 顯示移除
@@ -753,3 +754,50 @@ Tampermonkey 會按設定的更新間隔讀取固定 URL，比較 `@version`，�
 - 1280px 桌面版 9 張 Overview 卡片等寬約 118.97px、高度 64.4px，所有數值完整；390px 窄螢幕維持 118px 等寬卡片並在卡片列內水平捲動，所有數值均未截斷。
 - Test Features 表格分別為 58 與 57 筆，與 Rack 1 實際來源一致；Browser Console 0 Error／0 Warning。
 - JavaScript `node --check` 與 `git diff --check` 通過。
+
+---
+
+## 25. 2026-08-20 Insights、週報、差異與 Azure DevOps Extension（v1.9.0）
+
+### 25.1 Analytics OData 每日 State 趨勢
+
+- `Insights` 分頁使用 `https://analytics.dev.azure.com/{organization}/{project}/_odata/v3.0-preview/WorkItemSnapshot`。
+- 先以 Live Query 當次取得的 Test Case ID 建立篩選，再用 OData `$apply=filter(...)/groupby((DateSK,State),aggregate($count as Count))` 彙總最近 30 天；不會把 Query 以外的 Test Cases 混入趨勢。
+- 折線圖採原生 SVG、既有 State 語意色、直接日期刻度、節點 tooltip，並提供可展開的表格作為精確值與無障礙 fallback。
+- Tampermonkey metadata 新增 `GM_xmlhttpRequest` 與 `@connect analytics.dev.azure.com`。程式先嘗試標準 `fetch`，跨網域被擋時才使用 Tampermonkey 的唯讀請求；Extension 則使用 Azure DevOps SDK access token。
+
+### 25.2 真實 Test Run／Result／Plan
+
+- 查詢最近 28 天 `_apis/test/runs`，再讀取各 Run 的 `_apis/test/Runs/{runId}/results?detailsToInclude=Point`，並以 `_apis/testplan/plans` 補上 Test Plan ID／Name。
+- 對應順序為 Test Case ID 優先；只有在 Query 內 Title 完全相符且唯一時，才以 Title fallback。每個 Case 只保留完成時間最新的 Result。
+- 真實 Result Rate 的分母只包含 `Passed` 與失敗類 Outcome（Failed、Blocked、Aborted、Error、Timeout）。尚無 Result 或其他 Outcome 分開計數，不會冒充 Pass／Fail。
+- Overview 原有 `Closed = Pass`、`Blocked = Fail` 為專案 State 指標，保持相容；真實測試執行 Outcome 集中在 Insights，避免混用兩種來源。
+- Rack Case row 與 Test Features table 新增最新 Test Result badge 與 Test Run hyperlink。
+
+### 25.3 週報 CSV／Excel
+
+- **Download weekly CSV**：輸出所有 Rack Case 的 State、Changed Date、本週更新、快照差異、最新 Test Result、Run ID、Priority、Sample Size、Number of Cycles、Duration、Linked Bugs 與 Work Item URL。
+- **Download weekly Excel (.xls)**：使用 Excel 2003 XML，不依賴外部套件；包含 `Weekly Cases`、`Test Runs`、`State Trend`、`Snapshot Changes` 四張工作表，含凍結標題列、AutoFilter 與 hyperlinks。
+- Test Features 原本的 Rack 1 Excel 仍保留，兩個匯出用途不同。
+
+### 25.4 與上次快照比較
+
+- 每次 Live Query 完成後，先讀 `dvdashSnapshot` 作為 previous，再計算 Added、Removed、State Changed 與 Updated This Week，最後才覆寫目前 snapshot。
+- `dvdashSnapshotHistory` 保留最多 14 個每日快照；Offline snapshot 也會攜帶 Analytics、Test Results 與比較結果。
+- 第一次執行只能建立 baseline，`Insights` 會明確顯示尚無 previous snapshot，而不是輸出假的 0 變更結論。
+
+### 25.5 Azure DevOps Extension 與 Widget
+
+- `azure-devops-extension/` 使用 `azure-devops-extension-sdk`、TypeScript 與 esbuild，將同一份 userscript core 打包為 Azure Test Plans 的 **C4143 DV-Scale** Hub。
+- 同一個 VSIX 也包含 **C4143 DV-Scale Status** Dashboard Widget；Widget 執行 Live Query、顯示 Test Case State 橫條摘要，並連到完整 Hub。
+- manifest 只要求唯讀 `vso.work`、`vso.test`、`vso.analytics` scopes；不把 PAT 或 token 寫入 repo。Marketplace 上傳前必須確認 `publisher` 與實際 Publisher ID 相同，先保持 Private 並分享給 `azurecsi` organization。
+- 建置方式：進入 `azure-devops-extension` 後執行 `npm install`、`npm run package`；輸出為 `release/C4143-DVScale-Dashboard-Extension.vsix`。
+
+### 25.6 驗證狀態
+
+- Userscript：`node --check` 與 `git diff --check` 通過。
+- Extension：TypeScript `tsc --noEmit`、esbuild bundle 與 `tfx extension create` 通過；VSIX 48,812 bytes，內含 v1.9.0 userscript、Hub、Widget、manifest 與 icon。
+- 正常 fixture：290 Cases、Rack 1 58、Test Features 58／58、週報 290 rows、30 天趨勢、2 個 Test Runs、4 張 Excel worksheets；Rack 1 有 58 個 Test Result badges，Test Features 有 58 rows 與 44 個 Test Run links。
+- 替代 fixture：285 Cases、Rack 1 57、Test Features 57／57、週報 285 rows，沒有 Expected／Coverage warning；兩種 fixture 的 runtime error 清單皆為 0。
+- Insights 桌面版 6 張卡片等寬 184.5px，所有數值完整且 document width 未超過 viewport；390px iframe 測試為 6 張等寬 118px 卡片、0 個數值截斷，卡片列使用自己的水平捲動。
+- CSV 與 Excel 按鈕皆完成執行，狀態分別回報 290 Case rows 與四張工作表；趨勢 fallback table 為 30 rows。

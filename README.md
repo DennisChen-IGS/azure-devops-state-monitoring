@@ -1,11 +1,12 @@
 # Azure DevOps State Monitoring
 
-C4143 DV-Scale Rack Test Status Dashboard 是一個 Tampermonkey userscript。它會在 Azure DevOps 的同源專用頁面中執行 Query、讀取 Work Items，並建立 Overview、Rack 1～5、Rack 1 Test Features、State、Pass／Fail、Priority、Bug、Sample Size、Test Duration 與 `Number_of_cycles` 統計。
+C4143 DV-Scale Rack Test Status Dashboard 提供 Tampermonkey userscript 與原生 Azure DevOps Extension。它會讀取 Query、Work Items、Analytics OData、Test Runs／Results 與 Test Plans，建立 Overview、Rack 1～5、Insights、Test Features、State、真實測試 Outcome、Priority、Bug、Sample Size、Test Duration、`Number_of_cycles`、週報與快照差異統計。
 
 ## 目前版本
 
-- Dashboard：[C4143-DVScale-Dashboard.user.js](./C4143-DVScale-Dashboard.user.js)（固定安裝網址，腳本內版本 v1.8.6）
+- Dashboard：[C4143-DVScale-Dashboard.user.js](./C4143-DVScale-Dashboard.user.js)（固定安裝網址，腳本內版本 v1.9.0）
 - 開發與維護文件：[C4143-DVScale-Dashboard-HANDOFF.md](./C4143-DVScale-Dashboard-HANDOFF.md)
+- Azure DevOps Extension：[azure-devops-extension](./azure-devops-extension)；可安裝 VSIX 位於 `release/C4143-DVScale-Dashboard-Extension.vsix`
 - Azure DevOps organization：`https://azurecsi.visualstudio.com`
 - Azure DevOps project：`Dev`
 
@@ -29,13 +30,25 @@ v1.8.5 將 Overview 的 Pass／Fail Rate 限制為最多一位小數，整數百
 
 v1.8.6 移除所有固定 Expected Case 數量與 Coverage warning。Case 新增、移除或移至不同 Rack 後，下一次重新查詢會直接顯示 Query 的實際結果，不需要同步修改 userscript 裡的基準值。
 
+## Insights：趨勢、真實 Test Result、週報與差異
+
+v1.9.0 新增左側 `Insights` 分頁：
+
+- **30 天 State 趨勢**：使用 Analytics OData `WorkItemSnapshot`，依日期與 State 彙總當次 Query 中的 Test Cases，以折線圖顯示；圖下可展開可存取的資料表。
+- **真實 Pass／Fail**：讀取最近 28 天的 Test Runs、Test Results 與 Test Plans。每個 Case 只取最新結果，Pass／Fail Rate 的分母只包含 `Passed` 與失敗類 Outcome；沒有 Test Result 的 Case 會分開顯示，不會誤當 Fail。
+- **Case 結果回填**：Rack 與 Test Features 的每個 Case 顯示最新 Outcome，可連到對應 Test Run；優先以 Case ID 對應，僅在 Title 唯一且完全相符時才退回 Title 對應。
+- **與上次快照比較**：列出 Added、Removed、State Changed，以及本週有更新的 Cases。第一次使用只有基準快照；下一次重新查詢後才會產生差異。
+- **週報匯出**：`Download weekly CSV` 匯出全部 Case 明細；`Download weekly Excel (.xls)` 另外包含 Test Runs、State Trend、Snapshot Changes 四個工作表，保留 Azure DevOps hyperlinks。
+
+Analytics 是跨 `analytics.dev.azure.com` 讀取；Tampermonkey 更新到 v1.9.0 時會要求允許這個唯讀網域。若使用者沒有 Analytics 或 Test 權限，Insights 會顯示該資料源 unavailable，但既有 Query、Overview、Rack 與 Test Features 仍可使用。
+
 ## 發布成網頁與自動連動
 
 這個 Dashboard 可以發布成網頁，但要依使用情境選擇方式：
 
 - **目前 Tampermonkey 方式（建議內部使用）**：Dashboard 在 `azurecsi.visualstudio.com` 同源頁面內執行，直接沿用使用者已登入的 Azure DevOps session。按 `F5`、**Re-run query**，或啟用每 5 分鐘自動刷新時，就會重新查詢並顯示最新結果。
 - **純靜態網站（例如 GitHub Pages）**：可以發布畫面或離線 snapshot，但瀏覽器通常無法從其他網域直接讀取私有 Azure DevOps Query，因為會遇到登入授權與跨網域限制；因此不能只把目前的 JS 放上靜態網站就得到即時資料。
-- **可共用的即時網站**：需要增加受保護的後端 API／proxy，或製作 Azure DevOps Extension。新應用建議使用 Microsoft Entra ID OAuth；無人值守服務可依環境評估 Managed Identity／service principal，PAT 只在必要時使用並安全存放在伺服器端。不要把任何 token 寫在公開的 HTML 或 JavaScript 中。
+- **可共用的即時介面**：v1.9.0 已提供 Azure DevOps Extension Hub 與 Dashboard Widget，使用 Azure DevOps 發出的 read-only access token，不需把 PAT 寫進前端。純外部網站仍需要受保護的後端 API／proxy 與適當身分驗證。
 
 Azure DevOps Query 有更新時，資料是由 Dashboard 在下一次載入、手動重新查詢或排程刷新時「拉取」回來；Query 本身不會主動把更新推送到靜態網頁。若需要無人開啟頁面也持續更新，可由後端排程或 CI 工作定期執行 Query 並更新網站資料。
 
@@ -118,6 +131,18 @@ https://azurecsi.visualstudio.com/_apis/projects?api-version=6.0#dvdash
 Chrome 啟動並載入這個頁面後，Tampermonkey 會自動執行腳本；Live query 隨即重新抓取資料。
 
 > 腳本不會覆蓋所有一般 Azure DevOps 頁面。自動 Dashboard 只會在 `#dvdash` 專用入口，或 `/_apis/projects` 路徑啟動，避免影響 Boards、Queries、Test Plans 等正常操作。
+
+## 使用 Azure DevOps Extension／Dashboard Widget
+
+Extension 提供兩個入口：Azure Test Plans 下的完整 **C4143 DV-Scale** Hub，以及可加入 Azure DevOps Dashboard 的 **C4143 DV-Scale Status** Widget。安裝前需確認 [vss-extension.json](./azure-devops-extension/vss-extension.json) 的 `publisher` 是實際 Visual Studio Marketplace Publisher ID。
+
+```powershell
+cd .\azure-devops-extension
+npm install
+npm run package
+```
+
+完成後將 `release/C4143-DVScale-Dashboard-Extension.vsix` 上傳到 Visual Studio Marketplace，維持 Private、分享給 `azurecsi` organization，再從 Azure DevOps 安裝。Extension 只申請 `vso.work`、`vso.test`、`vso.analytics` 讀取範圍；Widget 會顯示 Live Query 摘要並連到完整 Hub。
 
 ## Dashboard 更新方式
 

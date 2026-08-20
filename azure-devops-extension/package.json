@@ -1,0 +1,20 @@
+{
+  "name": "c4143-dvscale-azure-devops-extension",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Azure DevOps Hub and Dashboard Widget for the C4143 DV-Scale dashboard",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "check": "tsc --noEmit",
+    "package": "npm run check && npm run build && tfx extension create --manifest-globs vss-extension.json --output-path ../release/C4143-DVScale-Dashboard-Extension.vsix"
+  },
+  "dependencies": {
+    "azure-devops-extension-api": "^4.260.0",
+    "azure-devops-extension-sdk": "^4.0.2"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "tfx-cli": "^0.22.3",
+    "typescript": "^5.9.0"
+  }
+}
