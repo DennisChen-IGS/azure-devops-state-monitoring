@@ -35,7 +35,7 @@ v1.8.6 移除所有固定 Expected Case 數量與 Coverage warning。Case 新增
 
 - **目前 Tampermonkey 方式（建議內部使用）**：Dashboard 在 `azurecsi.visualstudio.com` 同源頁面內執行，直接沿用使用者已登入的 Azure DevOps session。按 `F5`、**Re-run query**，或啟用每 5 分鐘自動刷新時，就會重新查詢並顯示最新結果。
 - **純靜態網站（例如 GitHub Pages）**：可以發布畫面或離線 snapshot，但瀏覽器通常無法從其他網域直接讀取私有 Azure DevOps Query，因為會遇到登入授權與跨網域限制；因此不能只把目前的 JS 放上靜態網站就得到即時資料。
-- **可共用的即時網站**：需要增加受保護的後端 API／proxy，或製作 Azure DevOps Extension。後端使用 OAuth、Managed Identity 或安全存放的 PAT 查詢 Azure DevOps，再把授權後的結果提供給前端。不要把 PAT 寫在公開的 HTML 或 JavaScript 中。
+- **可共用的即時網站**：需要增加受保護的後端 API／proxy，或製作 Azure DevOps Extension。新應用建議使用 Microsoft Entra ID OAuth；無人值守服務可依環境評估 Managed Identity／service principal，PAT 只在必要時使用並安全存放在伺服器端。不要把任何 token 寫在公開的 HTML 或 JavaScript 中。
 
 Azure DevOps Query 有更新時，資料是由 Dashboard 在下一次載入、手動重新查詢或排程刷新時「拉取」回來；Query 本身不會主動把更新推送到靜態網頁。若需要無人開啟頁面也持續更新，可由後端排程或 CI 工作定期執行 Query 並更新網站資料。
 

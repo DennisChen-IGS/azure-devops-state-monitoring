@@ -743,7 +743,7 @@ Tampermonkey 會按設定的更新間隔讀取固定 URL，比較 `@version`，�
 
 - 現行 Tampermonkey 版本在 Azure DevOps 同源頁面執行，沿用登入 session；每次 `F5`、**Re-run query** 或 5 分鐘自動刷新都會重新執行 Query。
 - 純 GitHub Pages 等靜態網站可發布離線 snapshot，但不能直接依賴目前的 same-origin REST 呼叫讀取私有 Query，主要限制是瀏覽器跨網域與 Azure DevOps 身分驗證。
-- 若要建立可共用的即時網址，應增加受保護的後端 API／proxy，或改為 Azure DevOps Extension。OAuth、Managed Identity 或 PAT 必須放在伺服器端安全保存，不可嵌入公開 JS。
+- 若要建立可共用的即時網址，應增加受保護的後端 API／proxy，或改為 Azure DevOps Extension。新應用優先使用 Microsoft Entra ID OAuth；Managed Identity、service principal 或必要時使用的 PAT 都必須依情境安全配置，不可將 token 嵌入公開 JS。
 - Query 更新是 pull 模式：下一次頁面載入或刷新時取得最新資料。若要在無人開頁時也持續同步，需由後端排程或 CI 定期執行 Query 並更新資料。
 
 ### 24.3 驗證基準
