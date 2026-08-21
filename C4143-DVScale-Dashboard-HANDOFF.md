@@ -2,14 +2,14 @@
 
 | 項目 | 內容 |
 | --- | --- |
-| 文件版本 | 2.0 |
+| 文件版本 | 2.1 |
 | 初版日期 | 2026-07-28 |
-| 最後更新 | 2026-08-20 |
-| 最新腳本 | `C4143-DVScale-Dashboard.user.js`（v1.9.0） |
-| 最新腳本大小 | 131682 bytes（約 128.6 KB） |
+| 最後更新 | 2026-08-21 |
+| 最新腳本 | `C4143-DVScale-Dashboard.user.js`（v1.10.0） |
+| 最新腳本大小 | 144523 bytes（約 141.1 KB） |
 | 執行環境 | Chrome + Tampermonkey，需已登入 Azure DevOps（azurecsi） |
 
-> 第 1～12 節保留 v1.2 建置時的原始設計與調查紀錄；第 13 節為 v1.3～v1.6.2 的後續開發補充，第 14～23 節記錄 v1.7.0～v1.8.5 的演進，第 24 節為 v1.8.6，第 25 節為 v1.9.0 Insights、報表、快照比較與 Azure DevOps Extension。前面章節中的「未完成」為當時狀態，最新完成狀態以第 25 節為準。
+> 第 1～12 節保留 v1.2 建置時的原始設計與調查紀錄；第 13 節為 v1.3～v1.6.2 的後續開發補充，第 14～23 節記錄 v1.7.0～v1.8.5 的演進，第 24 節為 v1.8.6，第 25 節為 v1.9.0 Insights、報表、快照比較與 Azure DevOps Extension，第 26 節為 v1.10.0 多專案 Query 選單。前面章節中的「未完成」為當時狀態，最新完成狀態以第 26 節為準。
 
 > **2026-08-14 的 Live Query 曾驗證到 5 Racks × 每櫃 58 Test Cases = 290 Test Cases；這是當時的查詢結果，不再作為固定 Expected 基準。v1.8.6 只顯示每次 Query 的實際數量。文件中的 54／270、58／290 等數值均為各版本當時的驗證紀錄。**
 
@@ -48,7 +48,7 @@
 
 | 檔案 / Key | 說明 |
 | --- | --- |
-| `C4143-DVScale-Dashboard.user.js` | 最新主交付物與固定安裝入口，Tampermonkey userscript v1.9.0 |
+| `C4143-DVScale-Dashboard.user.js` | 最新主交付物與固定安裝入口，Tampermonkey userscript v1.10.0 |
 | `azure-devops-extension/` | Azure Test Plans Hub 與 Dashboard Widget 原始碼、manifest 與建置流程 |
 | `release/C4143-DVScale-Dashboard-Extension.vsix` | 可上傳 Visual Studio Marketplace 的 Private Extension 套件 |
 | `C4143-DVScale-Dashboard.user_v1.6.1-bug-priority-severity.js` | 上一個穩定版本，保留供回退與比對 |
@@ -63,7 +63,10 @@ localStorage（origin `https://azurecsi.visualstudio.com`）使用到的 key：
 | `dvdashRange` | 時間範圍選擇（`all` / `1` / `3` / `7` / `30` / `60`） |
 | `dvdashType` | 圖表類型（`pie` / `bar`） |
 | `dvdashProxy` | 代理網址，預設 `http://localhost:8080` |
-| `dvdashSnapshot` | 上次成功載入的資料快照 JSON（目前約 107 KB） |
+| `dvdashQueries` | 使用者在 **Add / manage** 加入的自訂 Query 清單；只保存在目前瀏覽器 |
+| `dvdashActiveQuery` | 目前選擇的 Organization／Project／Query ID 組合 |
+| `dvdashSnapshot:{query-key}` | 每個 Query 各自的上次成功載入快照；舊 C4143 `dvdashSnapshot` 仍可唯讀遷移 |
+| `dvdashSnapshotHistory:{query-key}` | 每個 Query 各自最多 14 份每日快照，供差異追蹤 |
 | `dvdashUserscript` / `dvdashUserscript2` / `dvdashUserscript3` | 開發期間存放 v1.0 / v1.1 / v1.2 腳本原始碼，正式交接後可刪除 |
 | `adoDashPat` | 代理模式選用的 PAT（**建議留空，由 proxy 端自己帶**） |
 
@@ -78,6 +81,15 @@ localStorage（origin `https://azurecsi.visualstudio.com`）使用到的 key：
 | Query 名稱 | `C4143_DV-Scale` |
 | Query ID | `9254024e-6a97-44ed-953b-1aa07d38fb48` |
 | Query 頁面 | `https://azurecsi.visualstudio.com/Dev/_queries/query/9254024e-6a97-44ed-953b-1aa07d38fb48/` |
+
+v1.10.0 另內建第二個 Query：
+
+| 項目 | 值 |
+| --- | --- |
+| Project | `Dev` |
+| Query 名稱 | `[EchoFalls][C4142][PSE] EVT - Scale Testing` |
+| Query ID | `6e06c765-2ff5-43c4-80c6-e78438eea6d9` |
+| Query 頁面 | `https://azurecsi.visualstudio.com/Dev/_queries/query/6e06c765-2ff5-43c4-80c6-e78438eea6d9/` |
 
 API 呼叫（皆為讀取）：
 
@@ -172,7 +184,7 @@ document-idle → hash 含 dvdash？ → D.boot()
 | 模式 | 值 | 行為 |
 | --- | --- | --- |
 | Live query (same-origin REST API) | `live` | 預設。`fetch` 同源 API，`credentials: include`，用瀏覽器登入身分。 |
-| Offline snapshot (no network) | `snapshot` | 不連網，讀 `dvdashSnapshot` 或匯出 HTML 內嵌的 `D.EMBEDDED`。 |
+| Offline snapshot (no network) | `snapshot` | 不連網，讀目前 Query 專屬的 `dvdashSnapshot:{query-key}`，或匯出 HTML 內嵌的 `D.EMBEDDED`。 |
 | Local proxy (custom URL) | `proxy` | 把路徑改送到自訂 base URL，`credentials: omit`，可選擇性帶 Basic auth（PAT）。 |
 
 ### 5.5 圖表
@@ -306,6 +318,7 @@ document-idle → hash 含 dvdash？ → D.boot()
 | v1.8.5 | Pass／Fail 百分比最多一位小數；數量為零時只顯示 `0%` |
 | v1.8.6 | 移除固定 Expected Case 數量與 Coverage warning，只顯示 Query 實際總數；保留 Test Features 與 Rack 1 的即時同步比較 |
 | v1.9.0 | 新增 Analytics 30 天 State 趨勢、Test Runs／Results／Plans 真實 Outcome、週報 CSV／Excel、上次快照差異、Case Result 回填，以及 Azure DevOps Hub／Widget Extension |
+| v1.10.0 | 新增多專案 Query 選單、內建 EchoFalls C4142 Query、瀏覽器本機 Query 管理、動態標題／匯出檔名，以及 Query-scoped snapshot／history |
 
 ---
 
@@ -801,3 +814,35 @@ Tampermonkey 會按設定的更新間隔讀取固定 URL，比較 `@version`，�
 - 替代 fixture：285 Cases、Rack 1 57、Test Features 57／57、週報 285 rows，沒有 Expected／Coverage warning；兩種 fixture 的 runtime error 清單皆為 0。
 - Insights 桌面版 6 張卡片等寬 184.5px，所有數值完整且 document width 未超過 viewport；390px iframe 測試為 6 張等寬 118px 卡片、0 個數值截斷，卡片列使用自己的水平捲動。
 - CSV 與 Excel 按鈕皆完成執行，狀態分別回報 290 Case rows 與四張工作表；趨勢 fallback table 為 30 rows。
+
+---
+
+## 26. 2026-08-21 多專案 Query 選單（v1.10.0）
+
+### 26.1 需求與資料來源
+
+- 同一個 Dashboard 頂端新增 **Query** 選單，可在不同 Azure DevOps Project Query 之間切換，並沿用目前 Overview、Rack、Insights、Test Features、Bug、Priority、Metrics 與匯出規格。
+- 內建保留原本 `C4143_DV-Scale`，並新增 `[EchoFalls][C4142][PSE] EVT - Scale Testing`（Query ID `6e06c765-2ff5-43c4-80c6-e78438eea6d9`）。
+- 2026-08-21 以已登入的 Azure DevOps Query 頁面做唯讀確認：新 Query 顯示 1,725 work items，結構包含 Epic、Rack Feature、Feature、System Requirement、Test Case 與其連結項目；現有 Rack 階層解析可直接沿用。
+
+### 26.2 Query 管理與安全界線
+
+- `D.DEFAULT_QUERIES` 保存內建來源；`D.loadQueryCatalog()` 合併 `localStorage.dvdashQueries` 的自訂來源，`D.applyQuery()` 同步更新 `org`、`orgName`、`project`、`queryId` 與 `queryUrl`。
+- **Add / manage** 接受 `{organization}.visualstudio.com/{project}/_queries/query/{id}` 與 `dev.azure.com/{organization}/{project}/_queries/query/{id}` 兩種 URL，可設定本機顯示名稱及移除自訂項目。
+- Query 清單與選擇只存在目前瀏覽器。程式只執行既有 GET 與唯讀 WIQL／workitemsbatch POST，不會對 Azure DevOps 建立、修改或刪除 Query，也不會更新 Work Item。
+- 切換 Query 會將分頁回到 Overview、清除上一個畫面、更新標題／來源連結，再重新執行選定 Query。Report、Rack 1 Excel 與 Offline Snapshot 檔名改以目前 Query 名稱產生。
+
+### 26.3 Query 隔離快照
+
+- snapshot key 改為 `dvdashSnapshot:{organization|project|queryId}`，history key 改為 `dvdashSnapshotHistory:{organization|project|queryId}`；不同 Query 不會互相比較 Added、Removed 或 State Changed。
+- 原本 C4143 的 `dvdashSnapshot` 仍保留唯讀 fallback，因此既有使用者升級後不會失去舊快照；下一次成功載入會寫入新的 Query-scoped key。
+- 匯出的離線 HTML 會攜帶目前 Query metadata、選單狀態與該 Query 的 snapshot，標題和檔名不再固定為 C4143。
+
+### 26.4 驗證
+
+- `node --check` 與 `git diff --check` 通過。
+- 本機 mock REST Browser QA：初始 `C4143_DV-Scale` 顯示 1 Rack／1 Case；切換 EchoFalls 後標題、來源 hyperlink、selected option、Overview 與分頁同步更新為 2 Racks／2 Cases。
+- EchoFalls 測試畫面建立 `Overview (2 Racks)`、`Rack 1`、`Rack 2`、`Insights`、`Test Features`，Closed／Blocked fixture 的 Pass／Fail 均為 `1 · 50%`。
+- Offline Snapshot 按鈕在動態 Query 標題下完成執行，狀態回報內嵌 1 個 Test Case，Browser Console 0 Error／0 Warning。
+- Extension package、TypeScript check 與 esbuild 通過；`release/C4143-DVScale-Dashboard-Extension.vsix` 更新為 Extension v1.1.0、52,173 bytes，內含 userscript v1.10.0 與兩個內建 Query。
+- Azure DevOps 實際 Query 頁面只做可見內容讀取；此次實作與驗證沒有儲存 Query、沒有編輯 Work Item，也沒有安裝或修改 Azure DevOps organization。

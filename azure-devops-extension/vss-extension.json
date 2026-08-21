@@ -1,9 +1,9 @@
 {
   "manifestVersion": 1,
   "id": "c4143-dvscale-dashboard",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "name": "C4143 DV-Scale Dashboard",
-  "description": "Live C4143 Rack status, Analytics trends, Test Results, weekly reports and snapshot changes inside Azure DevOps.",
+  "description": "Switch between read-only project Queries for Rack status, Analytics trends, Test Results, reports and snapshot changes inside Azure DevOps.",
   "publisher": "alan512627",
   "public": false,
   "categories": ["Azure Boards", "Azure Test Plans"],

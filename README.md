@@ -1,14 +1,32 @@
 # Azure DevOps State Monitoring
 
-C4143 DV-Scale Rack Test Status Dashboard 提供 Tampermonkey userscript 與原生 Azure DevOps Extension。它會讀取 Query、Work Items、Analytics OData、Test Runs／Results 與 Test Plans，建立 Overview、Rack 1～5、Insights、Test Features、State、真實測試 Outcome、Priority、Bug、Sample Size、Test Duration、`Number_of_cycles`、週報與快照差異統計。
+Azure DevOps Rack Test Status Dashboard 提供 Tampermonkey userscript 與原生 Azure DevOps Extension。它能在同一個 Dashboard 切換多個專案 Query，並讀取 Work Items、Analytics OData、Test Runs／Results 與 Test Plans，建立 Overview、各 Rack、Insights、Test Features、State、真實測試 Outcome、Priority、Bug、Sample Size、Test Duration、`Number_of_cycles`、週報與快照差異統計。
 
 ## 目前版本
 
-- Dashboard：[C4143-DVScale-Dashboard.user.js](./C4143-DVScale-Dashboard.user.js)（固定安裝網址，腳本內版本 v1.9.0）
+- Dashboard：[C4143-DVScale-Dashboard.user.js](./C4143-DVScale-Dashboard.user.js)（固定安裝網址，腳本內版本 v1.10.0）
 - 開發與維護文件：[C4143-DVScale-Dashboard-HANDOFF.md](./C4143-DVScale-Dashboard-HANDOFF.md)
 - Azure DevOps Extension：[azure-devops-extension](./azure-devops-extension)；可安裝 VSIX 位於 `release/C4143-DVScale-Dashboard-Extension.vsix`
 - Azure DevOps organization：`https://azurecsi.visualstudio.com`
 - Azure DevOps project：`Dev`
+
+## 多專案 Query 選單
+
+v1.10.0 在頂端控制列新增 **Query** 選單，內建以下兩個唯讀資料來源：
+
+- `C4143_DV-Scale`：`9254024e-6a97-44ed-953b-1aa07d38fb48`
+- `[EchoFalls][C4142][PSE] EVT - Scale Testing`：`6e06c765-2ff5-43c4-80c6-e78438eea6d9`
+
+選擇另一個 Query 後，Dashboard 會重新執行該 Query，並以相同的 Overview、Rack、Insights、Test Features 與匯出格式呈現。標題、來源連結、Work Item hyperlinks 與匯出檔名也會同步改成目前選擇的 Query。
+
+按 **Add / manage** 可以貼上其他 Azure DevOps Query URL，並自行設定顯示名稱。自訂清單只保存在目前瀏覽器的 `localStorage`，不會在 Azure DevOps 建立、修改或刪除 Query，也不會改動任何 Work Item。支援的網址格式為：
+
+```text
+https://{organization}.visualstudio.com/{project}/_queries/query/{query-id}/
+https://dev.azure.com/{organization}/{project}/_queries/query/{query-id}/
+```
+
+每個 Query 的 snapshot 與最多 14 份每日歷史會使用各自的儲存 key，切換專案時不會拿另一個 Query 的 Case 做 Added／Removed／State Changed 比較。Live query 仍受瀏覽器同源規則限制；目前從 `azurecsi.visualstudio.com` 啟動時，最適合加入同一個 `azurecsi` organization 下的其他 project Query。
 
 ## Test Features 分頁
 

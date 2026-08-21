@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         C4143 DV-Scale Rack Test Status Dashboard
 // @namespace    local.ado.dvscale.dashboard
-// @version      1.9.0
-// @description  Adds Analytics trends, real Test Results, weekly exports, snapshot differences, and Azure DevOps Extension support.
+// @version      1.10.0
+// @description  Adds a multi-project Query selector, Analytics trends, Test Results, exports, snapshot differences, and Extension support.
 // @homepageURL  https://github.com/alan512627/azure-devops-state-monitoring
 // @supportURL   https://github.com/alan512627/azure-devops-state-monitoring/issues
 // @updateURL    https://raw.githubusercontent.com/alan512627/azure-devops-state-monitoring/main/C4143-DVScale-Dashboard.user.js
@@ -66,6 +66,10 @@
     D.CFG.project = extensionContext.project || D.CFG.project;
     D.CFG.queryUrl = D.CFG.org + '/' + encodeURIComponent(D.CFG.project) + '/_queries/query/' + D.CFG.queryId + '/';
   }
+  D.DEFAULT_QUERIES = [
+    { name: 'C4143_DV-Scale', org: 'https://azurecsi.visualstudio.com', orgName: 'azurecsi', project: 'Dev', queryId: '9254024e-6a97-44ed-953b-1aa07d38fb48', queryUrl: 'https://azurecsi.visualstudio.com/Dev/_queries/query/9254024e-6a97-44ed-953b-1aa07d38fb48/', builtin: true },
+    { name: '[EchoFalls][C4142][PSE] EVT - Scale Testing', org: 'https://azurecsi.visualstudio.com', orgName: 'azurecsi', project: 'Dev', queryId: '6e06c765-2ff5-43c4-80c6-e78438eea6d9', queryUrl: 'https://azurecsi.visualstudio.com/Dev/_queries/query/6e06c765-2ff5-43c4-80c6-e78438eea6d9/', builtin: true }
+  ];
   D.STATE_COLORS = {"Not Started":"#94a3b8","New":"#60a5fa","Proposed":"#f5b544","Design":"#a78bfa","In Progress":"#818cf8","Active":"#818cf8","Ready":"#38bdf8","Committed":"#22d3ee","Passed":"#34d399","Closed":"#2dd4bf","Done":"#2dd4bf","Completed":"#2dd4bf","Failed":"#f87171","Blocked":"#fb7185","Removed":"#9ca3af","Resolved":"#22d3ee","Paused":"#fbbf24"};
   D.TYPE_COLORS = {"Epic":"#c084fc","Feature":"#38bdf8","System Requirement":"#fbbf24","Test Case":"#34d399","User Story":"#818cf8","Task":"#60a5fa","Bug":"#fb7185","Issue":"#fb923c"};
   D.STATE_ORDER = ["Not Started","New","Proposed","Design","Ready","Committed","Active","In Progress","Paused","Blocked","Failed","Passed","Resolved","Closed","Done","Completed","Removed"];
@@ -81,8 +85,61 @@
     igsOwner: { aliases: ['IGS Owner'] },
     comments: { aliases: ['Comments', 'Comment'] }
   };
-  D.S = {racks:[],loadedAt:null,range:"all",chartType:"pie",panels:[],active:0,mode:"live",analyticsTrend:{status:"idle",days:[]},testResults:{status:"idle",runs:[]},snapshotComparison:null};
+  D.S = {racks:[],loadedAt:null,range:"all",chartType:"pie",panels:[],active:0,mode:"live",queries:[],activeQueryKey:'',analyticsTrend:{status:"idle",days:[]},testResults:{status:"idle",runs:[]},snapshotComparison:null};
   D.el = function (t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; };
+  D.queryKey = function (query) { return [query.orgName, query.project, query.queryId].join('|').toLowerCase(); };
+  D.activeQuery = function () {
+    var key = D.S.activeQueryKey || D.queryKey(D.CFG);
+    return (D.S.queries || []).filter(function (query) { return D.queryKey(query) === key; })[0] || Object.assign({ name: 'Azure DevOps Query' }, D.CFG);
+  };
+  D.parseQueryUrl = function (value, name) {
+    var parsed;
+    try { parsed = new URL(String(value || '').trim()); } catch (error) { throw new Error('Enter a valid Azure DevOps Query URL.'); }
+    var host = parsed.hostname.toLowerCase(), parts = parsed.pathname.split('/').filter(Boolean), orgName = '', project = '', queryId = '', org = '';
+    if (host === 'dev.azure.com') {
+      if (parts.length < 5) throw new Error('The Query URL is missing its organization, project, or Query ID.');
+      orgName = decodeURIComponent(parts[0]); project = decodeURIComponent(parts[1]);
+      if (parts[2].toLowerCase() !== '_queries' || parts[3].toLowerCase() !== 'query') throw new Error('Use an Azure DevOps URL ending in /_queries/query/{Query ID}/.');
+      queryId = parts[4]; org = 'https://dev.azure.com/' + encodeURIComponent(orgName);
+    } else if (/\.visualstudio\.com$/i.test(host)) {
+      if (parts.length < 4) throw new Error('The Query URL is missing its project or Query ID.');
+      orgName = host.split('.')[0]; project = decodeURIComponent(parts[0]);
+      if (parts[1].toLowerCase() !== '_queries' || parts[2].toLowerCase() !== 'query') throw new Error('Use an Azure DevOps URL ending in /_queries/query/{Query ID}/.');
+      queryId = parts[3]; org = parsed.protocol + '//' + parsed.host;
+    } else throw new Error('Only dev.azure.com or visualstudio.com Query URLs are supported.');
+    if (!/^[0-9a-f-]{36}$/i.test(queryId)) throw new Error('The Azure DevOps Query ID is invalid.');
+    return { name: String(name || '').trim() || (project + ' Query ' + queryId.slice(0, 8)), org: org.replace(/\/+$/, ''), orgName: orgName, project: project, queryId: queryId.toLowerCase(),
+      queryUrl: org.replace(/\/+$/, '') + '/' + encodeURIComponent(project) + '/_queries/query/' + queryId.toLowerCase() + '/', builtin: false };
+  };
+  D.loadQueryCatalog = function () {
+    var map = {}, list = [];
+    D.DEFAULT_QUERIES.forEach(function (query) { map[D.queryKey(query)] = Object.assign({}, query); });
+    try {
+      var custom = JSON.parse(localStorage.getItem('dvdashQueries') || '[]');
+      if (Array.isArray(custom)) custom.forEach(function (query) {
+        if (query && query.orgName && query.project && query.queryId) map[D.queryKey(query)] = Object.assign({}, query, { builtin: false });
+      });
+    } catch (error) { }
+    Object.keys(map).forEach(function (key) { list.push(map[key]); });
+    D.S.queries = list;
+    var fallback = D.queryKey(D.CFG), active = fallback;
+    try { active = localStorage.getItem('dvdashActiveQuery') || fallback; } catch (error) { }
+    if (!map[active]) active = fallback;
+    if (!map[active]) active = D.queryKey(list[0]);
+    D.applyQuery(map[active] || list[0], false);
+  };
+  D.saveQueryCatalog = function () {
+    try { localStorage.setItem('dvdashQueries', JSON.stringify((D.S.queries || []).filter(function (query) { return !query.builtin; }))); } catch (error) { }
+  };
+  D.applyQuery = function (query, persist) {
+    if (!query) return;
+    ['org', 'orgName', 'project', 'queryId', 'queryUrl'].forEach(function (key) { D.CFG[key] = query[key]; });
+    D.S.activeQueryKey = D.queryKey(query);
+    if (persist !== false) { try { localStorage.setItem('dvdashActiveQuery', D.S.activeQueryKey); } catch (error) { } }
+  };
+  D.snapshotStorageKey = function (base) { return base + ':' + encodeURIComponent(D.queryKey(D.CFG)); };
+  D.safeFileName = function (value) { return String(value || 'Azure-DevOps-Query').replace(/[\\/:*?"<>|\[\]]+/g, '-').replace(/\s+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 80) || 'Azure-DevOps-Query'; };
+  D.reportPrefix = function () { return D.safeFileName(D.activeQuery().name); };
   D.svg = function (t, a) { var e = document.createElementNS('http://www.w3.org/2000/svg', t); for (var k in a) e.setAttribute(k, a[k]); return e; };
   D.colorFor = function (s) { return D.STATE_COLORS[s] || '#cbd5e1'; };
   D.orderStates = function (keys) {
@@ -113,7 +170,7 @@
     el.setAttribute('data-state', state || 'Unknown');
     return el;
   };
-  D.wiUrl = function (id) { return D.CFG.org + '/' + D.CFG.project + '/_workitems/edit/' + id; };
+  D.wiUrl = function (id) { return D.CFG.org + '/' + encodeURIComponent(D.CFG.project) + '/_workitems/edit/' + id; };
   D.fmt = function (iso) { if (!iso) return '-'; var d = new Date(iso); function p(n) { return (n < 10 ? '0' : '') + n; } return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()); };
   D.setStatus = function (html, kind) {
     var b = document.getElementById('banner'); if (!b) return;
@@ -180,7 +237,7 @@
     Object.keys(specs).forEach(function (key) { map[key] = specs[key].fallback || null; });
     D.S.metricFieldWarning = '';
     try {
-      var response = await D.apiFetch(base + '/' + D.CFG.project + '/_apis/wit/fields?api-version=6.0');
+      var response = await D.apiFetch(base + '/' + encodeURIComponent(D.CFG.project) + '/_apis/wit/fields?api-version=6.0');
       var definitions = response.value || [];
       Object.keys(specs).forEach(function (key) {
         var aliases = specs[key].aliases.map(D.normalizeFieldName);
@@ -206,7 +263,7 @@
   D.runQuery = async function () {
     D.S.bugLinkWarning = '';
     var base = D.baseFor();
-    var wiql = await D.apiFetch(base + '/' + D.CFG.project + '/_apis/wit/wiql/' + D.CFG.queryId + '?api-version=6.0&$top=5000');
+    var wiql = await D.apiFetch(base + '/' + encodeURIComponent(D.CFG.project) + '/_apis/wit/wiql/' + D.CFG.queryId + '?api-version=6.0&$top=5000');
     var rels = wiql.workItemRelations || [];
     var ids = [], seen = {};
     rels.forEach(function (r) { [r.source, r.target].forEach(function (x) { if (x && !seen[x.id]) { seen[x.id] = 1; ids.push(x.id); } }); });
@@ -218,7 +275,7 @@
     async function fetchCore(requestFields) {
       var result = [];
       for (var i = 0; i < ids.length; i += 200) {
-        var batch = await D.apiFetch(base + '/' + D.CFG.project + '/_apis/wit/workitemsbatch?api-version=6.0',
+        var batch = await D.apiFetch(base + '/' + encodeURIComponent(D.CFG.project) + '/_apis/wit/workitemsbatch?api-version=6.0',
           { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: ids.slice(i, i + 200), fields: requestFields }) });
         result = result.concat(batch.value || []);
       }
@@ -241,7 +298,7 @@
         return it.fields && it.fields['System.WorkItemType'] === 'Test Case';
       }).map(function (it) { return it.id; });
       for (var j = 0; j < testCaseIds.length; j += 200) {
-        var relationBatch = await D.apiFetch(base + '/' + D.CFG.project + '/_apis/wit/workitemsbatch?api-version=6.0',
+        var relationBatch = await D.apiFetch(base + '/' + encodeURIComponent(D.CFG.project) + '/_apis/wit/workitemsbatch?api-version=6.0',
           { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: testCaseIds.slice(j, j + 200), '$expand': 'relations', errorPolicy: 'omit' }) });
         (relationBatch.value || []).forEach(function (it) {
           (it.relations || []).forEach(function (rel) {
@@ -255,7 +312,7 @@
         });
       }
       for (var k = 0; k < linkedFetchIds.length; k += 200) {
-        var linkedBatch = await D.apiFetch(base + '/' + D.CFG.project + '/_apis/wit/workitemsbatch?api-version=6.0',
+        var linkedBatch = await D.apiFetch(base + '/' + encodeURIComponent(D.CFG.project) + '/_apis/wit/workitemsbatch?api-version=6.0',
           { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: linkedFetchIds.slice(k, k + 200), fields: fields, errorPolicy: 'omit' }) });
         (linkedBatch.value || []).forEach(function (it) { byId[it.id] = it.fields; });
       }
@@ -883,7 +940,7 @@
     var headers = ['Rack', 'Case ID', 'Title', 'Case State', 'Changed Date', 'Changed This Week', 'Snapshot Change', 'Latest Test Result', 'Result Date', 'Test Run ID', 'Priority', 'Sample Size', 'Number of Cycles', 'Test Duration', 'Linked Bugs', 'Azure DevOps URL'];
     var keys = ['rack', 'id', 'title', 'state', 'changed', 'changedThisWeek', 'snapshotChange', 'result', 'resultDate', 'runId', 'priority', 'sampleSize', 'cycles', 'duration', 'bugs', 'url'];
     var lines = [headers.map(D.csvValue).join(',')]; D.weeklyRows().forEach(function (row) { lines.push(keys.map(function (key) { return D.csvValue(row[key]); }).join(',')); });
-    D.downloadBlob('\ufeff' + lines.join('\r\n'), 'text/csv;charset=utf-8', 'C4143-Weekly-Report-' + D.reportStamp() + '.csv'); D.setStatus('Downloaded weekly CSV report with ' + (lines.length - 1) + ' case rows.', 'info');
+    D.downloadBlob('\ufeff' + lines.join('\r\n'), 'text/csv;charset=utf-8', D.reportPrefix() + '-Weekly-Report-' + D.reportStamp() + '.csv'); D.setStatus('Downloaded weekly CSV report with ' + (lines.length - 1) + ' case rows.', 'info');
   };
   D.excelWorksheet = function (name, headers, rows) {
     var xml = '<Worksheet ss:Name="' + D.xmlEsc(name) + '"><Table ss:ExpandedColumnCount="' + headers.length + '" ss:ExpandedRowCount="' + (rows.length + 1) + '" x:FullColumns="1" x:FullRows="1"><Row>';
@@ -907,7 +964,7 @@
       + D.excelWorksheet('State Trend', ['Date'].concat(stateList), trendRows) + D.excelWorksheet('Snapshot Changes', ['Change', 'Case ID', 'Title', 'Rack', 'Before', 'After', 'Changed'], changeRows) + '</Workbook>';
     return { xml: xml, count: caseRows.length };
   };
-  D.exportWeeklyExcel = function () { var report = D.weeklyExcelXml(); D.downloadBlob(report.xml, 'application/vnd.ms-excel;charset=utf-8', 'C4143-Weekly-Report-' + D.reportStamp() + '.xls'); D.setStatus('Downloaded weekly Excel workbook with ' + report.count + ' case rows and four worksheets.', 'info'); };
+  D.exportWeeklyExcel = function () { var report = D.weeklyExcelXml(); D.downloadBlob(report.xml, 'application/vnd.ms-excel;charset=utf-8', D.reportPrefix() + '-Weekly-Report-' + D.reportStamp() + '.xls'); D.setStatus('Downloaded weekly Excel workbook with ' + report.count + ' case rows and four worksheets.', 'info'); };
   D.insightsPanel = function () {
     var wrap = D.el('div'), cases = D.allCases(), test = D.S.testResults || { status: 'idle', runs: [] }, summary = test.summary || D.testResultSummary(cases), comparison = D.S.snapshotComparison || { status: 'first', added: [], removed: [], stateChanged: [], updatedThisWeek: [] };
     var sticky = D.el('div', 'panel-sticky'), cards = D.el('div', 'cards');
@@ -949,6 +1006,7 @@
   D.CSS += "\n.dashboard-main{display:grid;grid-template-columns:64px minmax(0,1fr);align-items:start;min-width:0}\n#panels{min-width:0}\n.tabs{display:flex;flex-direction:column;flex-wrap:nowrap;align-items:center;gap:4px;width:64px;min-width:64px;padding:10px 6px 60px 8px}\n.tab{display:flex;align-items:center;justify-content:center;flex:0 0 auto;width:50px;min-width:50px;max-width:50px;min-height:72px;height:auto;padding:8px 5px;border:1px solid #1e2b45;border-radius:6px;background:#111d33;color:#9fb3d0;writing-mode:vertical-rl;text-orientation:mixed;white-space:nowrap;font-size:11px;line-height:1.1}\n.tab.active{background:#16243d;color:#fff;font-weight:600;box-shadow:inset 3px 0 0 #38bdf8}\n.panel{min-width:0;padding:16px 20px 60px 14px}\n@media(max-width:720px){.dashboard-main{grid-template-columns:54px minmax(0,1fr)}.tabs{width:54px;min-width:54px;padding:8px 4px 40px}.tab{width:44px;min-width:44px;max-width:44px;min-height:66px;padding:7px 4px;font-size:10px}.panel{padding:12px 10px 50px 8px}}";
   D.CSS += "\n:root{--dvdash-controls-height:52px}\n.tabs{position:sticky;top:calc(var(--dvdash-controls-height) + 8px);align-self:start;z-index:12;max-height:calc(100vh - var(--dvdash-controls-height) - 16px);overflow-y:auto;scrollbar-width:thin}\n.panel-sticky,.suite-sticky{position:sticky;top:var(--dvdash-controls-height);z-index:11;background:#0b1220;padding-top:8px;padding-bottom:12px;box-shadow:0 12px 18px rgba(3,8,18,.42)}\n.panel-sticky>.cards,.suite-sticky>.cards{margin-bottom:0}\n@media(max-width:980px), (max-height:700px){.panel-sticky,.suite-sticky{position:static;box-shadow:none;padding-top:0}}\n@media(max-width:720px){.tabs{top:calc(var(--dvdash-controls-height) + 6px);max-height:calc(100vh - var(--dvdash-controls-height) - 12px)}}";
   D.CSS += "\n.insights-toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:4px 0 14px}.trend-scroll{max-width:100%;overflow-x:auto}.trend-scroll>svg{min-width:720px}.trend-table-details,.change-group{margin-top:10px;border-top:1px solid #1c2942;padding-top:6px}.trend-table-details>summary,.change-group>summary{cursor:pointer;color:#7dd3fc;font-size:12px;font-weight:600;min-height:32px;display:flex;align-items:center}.table-scroll{max-width:100%;overflow:auto}.table-scroll>table{min-width:760px}.change-list{display:grid;gap:5px;padding:5px 0}.change-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:7px 8px;border:1px solid #1c2942;border-radius:7px;background:#0f1a2e}.change-title{flex:1;min-width:220px;color:#d7e3f4}.change-state{font-size:11px;color:#f8d4a2;font-weight:700}.result-link{white-space:nowrap}@media(max-width:720px){.insights-toolbar>*{width:100%}.trend-scroll>svg{min-width:660px}.change-title{min-width:150px}}";
+  D.CSS += "\n.query-control{display:inline-flex;gap:6px;align-items:center}.query-control select{min-width:260px;max-width:420px}.query-modal-backdrop{position:fixed;inset:0;z-index:200;background:rgba(3,8,18,.78);display:flex;align-items:center;justify-content:center;padding:20px}.query-modal{width:min(760px,100%);max-height:calc(100vh - 40px);overflow:auto;background:#101b30;border:1px solid #35527a;border-radius:12px;padding:18px;box-shadow:0 24px 80px rgba(0,0,0,.58)}.query-modal-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px}.query-modal h2{margin:0;font-size:18px}.query-form{display:grid;grid-template-columns:minmax(160px,.7fr) minmax(300px,1.6fr) auto;gap:10px;align-items:end;padding:12px;border:1px solid #253858;border-radius:9px;background:#0c1729}.query-form label{display:grid;gap:5px;color:#9fb3d0;font-size:11px}.query-form input{width:100%;min-width:0}.query-help{margin:8px 0 12px;color:#8fa3c0;font-size:11px}.query-list{display:grid;gap:7px}.query-list-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px 12px;border:1px solid #253858;border-radius:8px;background:#0f1a2e}.query-list-name{font-weight:700;color:#dbeafe;overflow-wrap:anywhere}.query-list-meta{margin-top:3px;color:#8fa3c0;font-size:11px;overflow-wrap:anywhere}.query-error{min-height:18px;margin-top:8px;color:#fda4af;font-size:12px}@media(max-width:900px){.query-control select{min-width:190px;max-width:300px}.query-form{grid-template-columns:1fr}.query-form button{width:100%}}@media(max-width:620px){.query-control{width:100%}.query-control select{flex:1;min-width:0;max-width:none}.query-modal-backdrop{padding:8px}.query-modal{max-height:calc(100vh - 16px);padding:12px}}";
   D.card = function (k, v, tone) {
     var c = D.el('div', 'card');
     if (tone) {
@@ -1164,7 +1222,7 @@
     function pad(value) { return value < 10 ? '0' + value : String(value); }
     var stamp = now.getFullYear() + pad(now.getMonth() + 1) + pad(now.getDate()) + '-' + pad(now.getHours()) + pad(now.getMinutes());
     var blob = new Blob([result.xml], { type: 'application/vnd.ms-excel;charset=utf-8' });
-    var link = D.el('a'); link.href = URL.createObjectURL(blob); link.download = 'C4143-Rack1-Test-Features-' + stamp + '.xls';
+    var link = D.el('a'); link.href = URL.createObjectURL(blob); link.download = D.reportPrefix() + '-Rack1-Test-Features-' + stamp + '.xls';
     document.body.appendChild(link); link.click(); link.remove();
     setTimeout(function () { URL.revokeObjectURL(link.href); }, 5000);
     D.setStatus('Downloaded Excel workbook with ' + result.count + ' Rack 1 Test Feature case rows.', 'info');
@@ -1294,18 +1352,81 @@
     }
     D.updateStickyOffset(); requestAnimationFrame(D.updateStickyOffset);
   };
+  D.refreshQuerySelector = function () {
+    var select = document.getElementById('querySel'); if (!select) return;
+    select.innerHTML = '';
+    (D.S.queries || []).forEach(function (query) {
+      var option = D.el('option', null, query.name + ' · ' + query.project); option.value = D.queryKey(query);
+      if (option.value === D.S.activeQueryKey) option.selected = true;
+      select.appendChild(option);
+    });
+  };
+  D.updateIdentity = function () {
+    var query = D.activeQuery(), rackText = D.S.racks.length ? (' — ' + D.S.racks.length + ' Racks Test Status Dashboard') : ' — Test Status Dashboard';
+    document.title = query.name + ' Test Status Dashboard';
+    var title = document.getElementById('dashboardTitle'); if (title) title.textContent = query.name + rackText;
+    var source = document.getElementById('querySource');
+    if (source) { source.textContent = 'Azure DevOps Query: ' + query.name; source.href = query.queryUrl; }
+    D.refreshQuerySelector();
+  };
+  D.switchQuery = function (key) {
+    var query = (D.S.queries || []).filter(function (item) { return D.queryKey(item) === key; })[0]; if (!query) return;
+    D.applyQuery(query, true); D.S.active = 0; D.S.racks = []; D.S.loadedAt = null; D.S.snapshotComparison = null;
+    D.updateIdentity(); D.buildPanels(); D.load();
+  };
+  D.openQueryManager = function () {
+    var old = document.querySelector('.query-modal-backdrop'); if (old) old.remove();
+    var backdrop = D.el('div', 'query-modal-backdrop'), modal = D.el('section', 'query-modal');
+    modal.setAttribute('role', 'dialog'); modal.setAttribute('aria-modal', 'true'); modal.setAttribute('aria-labelledby', 'queryManagerTitle');
+    var head = D.el('div', 'query-modal-head'), title = D.el('h2', null, 'Manage Azure DevOps Queries'); title.id = 'queryManagerTitle'; head.appendChild(title);
+    var close = D.el('button', null, 'Close'); close.addEventListener('click', function () { backdrop.remove(); }); head.appendChild(close); modal.appendChild(head);
+    var form = D.el('div', 'query-form'), nameLabel = D.el('label', null, 'Display name (optional)'), nameInput = D.el('input'); nameInput.placeholder = 'Example: C4144 DV-Scale'; nameLabel.appendChild(nameInput);
+    var urlLabel = D.el('label', null, 'Azure DevOps Query URL'), urlInput = D.el('input'); urlInput.placeholder = 'https://azurecsi.visualstudio.com/Project/_queries/query/{id}/'; urlLabel.appendChild(urlInput);
+    var add = D.el('button', 'primary', 'Add Query'); form.appendChild(nameLabel); form.appendChild(urlLabel); form.appendChild(add); modal.appendChild(form);
+    modal.appendChild(D.el('p', 'query-help', 'Queries are saved only in this browser. The dashboard performs read-only API calls and never changes the Query or any work item.'));
+    var error = D.el('div', 'query-error'); modal.appendChild(error);
+    var list = D.el('div', 'query-list'); modal.appendChild(list);
+    function renderList() {
+      list.innerHTML = '';
+      (D.S.queries || []).forEach(function (query) {
+        var row = D.el('div', 'query-list-row'), info = D.el('div'), name = D.el('div', 'query-list-name', query.name + (D.queryKey(query) === D.S.activeQueryKey ? ' · Active' : ''));
+        info.appendChild(name); info.appendChild(D.el('div', 'query-list-meta', query.orgName + ' / ' + query.project + ' / ' + query.queryId)); row.appendChild(info);
+        if (query.builtin) row.appendChild(D.el('span', 'small', 'Built in'));
+        else {
+          var remove = D.el('button', null, 'Remove'); remove.addEventListener('click', function () {
+            var wasActive = D.queryKey(query) === D.S.activeQueryKey;
+            D.S.queries = D.S.queries.filter(function (item) { return D.queryKey(item) !== D.queryKey(query); }); D.saveQueryCatalog();
+            if (wasActive) { D.applyQuery(D.S.queries[0], true); D.S.active = 0; D.updateIdentity(); D.load(); }
+            renderList(); D.refreshQuerySelector();
+          }); row.appendChild(remove);
+        }
+        list.appendChild(row);
+      });
+    }
+    add.addEventListener('click', function () {
+      error.textContent = '';
+      try {
+        var query = D.parseQueryUrl(urlInput.value, nameInput.value), key = D.queryKey(query);
+        if ((D.S.queries || []).some(function (item) { return D.queryKey(item) === key; })) throw new Error('This Query is already in the selector.');
+        D.S.queries.push(query); D.saveQueryCatalog(); D.refreshQuerySelector(); renderList(); nameInput.value = ''; urlInput.value = '';
+        D.setStatus('Added Query "' + query.name + '" to this browser. Select it from the Query menu to load its dashboard.', 'info');
+      } catch (addError) { error.textContent = String((addError && addError.message) || addError); }
+    });
+    backdrop.addEventListener('click', function (event) { if (event.target === backdrop) backdrop.remove(); });
+    renderList(); backdrop.appendChild(modal); document.body.appendChild(backdrop); urlInput.focus();
+  };
   D.buildShell = function () {
     document.head.innerHTML = ''; document.body.innerHTML = '';
-    document.title = 'C4143 DV-Scale Rack Test Status Dashboard';
+    document.title = D.activeQuery().name + ' Test Status Dashboard';
     var st = D.el('style'); st.textContent = D.CSS; document.head.appendChild(st);
     var mc = D.el('meta'); mc.setAttribute('charset', 'utf-8'); document.head.appendChild(mc);
 
     var header = D.el('header');
     var left = D.el('div');
-    left.appendChild(D.el('h1', null, 'C4143 DV-Scale — 5 Racks Test Status Dashboard'));
+    var dashboardTitle = D.el('h1', null, D.activeQuery().name + ' — Test Status Dashboard'); dashboardTitle.id = 'dashboardTitle'; left.appendChild(dashboardTitle);
     var sub = D.el('div', 'sub');
     sub.appendChild(document.createTextNode('Source: '));
-    var qa = D.el('a', null, 'Azure DevOps query C4143_DV-Scale');
+    var qa = D.el('a', null, 'Azure DevOps Query: ' + D.activeQuery().name); qa.id = 'querySource';
     qa.href = D.CFG.queryUrl; qa.target = '_blank'; qa.rel = 'noopener'; sub.appendChild(qa);
     sub.appendChild(document.createTextNode(' ·  Every open / refresh of this page re-runs the query using the selected mode'));
     left.appendChild(sub); header.appendChild(left);
@@ -1316,6 +1437,8 @@
     header.appendChild(right); document.body.appendChild(header);
 
     var ctl = D.el('div', 'controls');
+    var queryControl = D.el('span', 'query-control'), queryLabel = D.el('label', null, 'Query'), querySelect = D.el('select'); querySelect.id = 'querySel'; queryLabel.appendChild(querySelect);
+    var queryManage = D.el('button', null, 'Add / manage'); queryManage.id = 'queryManageBtn'; queryControl.appendChild(queryLabel); queryControl.appendChild(queryManage); ctl.appendChild(queryControl); D.refreshQuerySelector();
     var l0 = D.el('label', null, 'Data source');
     var ms = D.el('select'); ms.id = 'modeSel';
     D.MODES.forEach(function (o) { var op = D.el('option', null, o[1]); op.value = o[0]; if (o[0] === D.S.mode) op.selected = true; ms.appendChild(op); });
@@ -1346,7 +1469,7 @@
     var tl = D.el('span', 'small colour-key'); tl.appendChild(document.createTextNode('Work item colours: '));
     ['Feature', 'System Requirement', 'Test Case'].forEach(function (type) { tl.appendChild(D.typeBadge(type)); });
     ctl.appendChild(tl);
-    document.body.appendChild(ctl);
+    document.body.appendChild(ctl); D.refreshQuerySelector();
     D.installStickyOffset();
 
     var banner = D.el('div', 'banner info', 'Preparing to load…'); banner.id = 'banner'; document.body.appendChild(banner);
@@ -1355,6 +1478,8 @@
     var panels = D.el('div'); panels.id = 'panels'; main.appendChild(panels);
     document.body.appendChild(main);
 
+    querySelect.addEventListener('change', function (event) { D.switchQuery(event.target.value); });
+    queryManage.addEventListener('click', D.openQueryManager);
     ms.addEventListener('change', function (e) {
       D.S.mode = e.target.value;
       try { localStorage.setItem('dvdashMode', D.S.mode); } catch (err) { }
@@ -1373,6 +1498,7 @@
     if (!D._timer) D._timer = setInterval(function () { var c = document.getElementById('autoRef'); if (c && c.checked && D.S.mode !== 'snapshot') D.load(); }, 300000);
   };
   D.buildPanels = function () {
+    D.updateIdentity();
     var tabsBar = document.getElementById('tabs'), host = document.getElementById('panels');
     tabsBar.innerHTML = ''; host.innerHTML = ''; D.S.panels = [];
     var defs = [{ kind: 'ov', label: 'Overview (' + D.S.racks.length + ' Racks)' }]
@@ -1577,7 +1703,7 @@
   D.baseFor = function () { return D.S.mode === 'proxy' ? D.getProxy() : D.CFG.org; };
   D.snapshotPayload = function () {
     return {
-      savedAt: D.S.loadedAt || new Date().toISOString(), racks: D.S.racks,
+      savedAt: D.S.loadedAt || new Date().toISOString(), query: Object.assign({}, D.activeQuery()), racks: D.S.racks,
       analyticsTrend: D.S.analyticsTrend, testResults: D.S.testResults, snapshotComparison: D.S.snapshotComparison
     };
   };
@@ -1606,21 +1732,26 @@
   };
   D.saveSnapshot = function (previous) {
     try {
+      var historyKey = D.snapshotStorageKey('dvdashSnapshotHistory'), snapshotKey = D.snapshotStorageKey('dvdashSnapshot');
       if (previous && previous.racks && previous.savedAt) {
         var history = [];
-        try { history = JSON.parse(localStorage.getItem('dvdashSnapshotHistory') || '[]'); } catch (historyError) { history = []; }
+        try { history = JSON.parse(localStorage.getItem(historyKey) || '[]'); } catch (historyError) { history = []; }
         var day = D.isoDay(previous.savedAt);
         history = history.filter(function (entry) { return entry && D.isoDay(entry.savedAt) !== day; });
         history.push(previous); history.sort(function (a, b) { return String(a.savedAt).localeCompare(String(b.savedAt)); });
-        localStorage.setItem('dvdashSnapshotHistory', JSON.stringify(history.slice(-14)));
+        localStorage.setItem(historyKey, JSON.stringify(history.slice(-14)));
       }
-      localStorage.setItem('dvdashSnapshot', JSON.stringify(D.snapshotPayload())); return true;
+      localStorage.setItem(snapshotKey, JSON.stringify(D.snapshotPayload())); return true;
     }
     catch (e) { return false; }
   };
   D.readSnapshot = function () {
     if (D.EMBEDDED && D.EMBEDDED.racks) return D.EMBEDDED;
-    try { var s = localStorage.getItem('dvdashSnapshot'); return s ? JSON.parse(s) : null; } catch (e) { return null; }
+    try {
+      var raw = localStorage.getItem(D.snapshotStorageKey('dvdashSnapshot'));
+      if (!raw && D.CFG.queryId === '9254024e-6a97-44ed-953b-1aa07d38fb48') raw = localStorage.getItem('dvdashSnapshot');
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
   };
   D.serialize = function () {
     var parts = [];
@@ -1628,7 +1759,7 @@
       if (k === 'EMBEDDED') return;
       var v = D[k];
       if (typeof v === 'function') parts.push('D.' + k + ' = ' + v.toString() + ';');
-      else if (k === 'S') parts.push('D.S = {racks:[],loadedAt:null,range:"all",chartType:"pie",panels:[],active:0,mode:"live",analyticsTrend:{status:"idle",days:[]},testResults:{status:"idle",runs:[]},snapshotComparison:null};');
+      else if (k === 'S') parts.push('D.S = ' + JSON.stringify({ racks: [], loadedAt: null, range: D.S.range || 'all', chartType: D.S.chartType || 'pie', panels: [], active: 0, mode: 'snapshot', queries: D.S.queries || [], activeQueryKey: D.S.activeQueryKey || '', analyticsTrend: { status: 'idle', days: [] }, testResults: { status: 'idle', runs: [] }, snapshotComparison: null }) + ';');
       else if (k === '_timer' || k === '_statusFadeTimer' || k === '_statusHideTimer') return;
       else parts.push('D.' + k + ' = ' + JSON.stringify(v) + ';');
     });
@@ -1638,7 +1769,7 @@
     if (!D.S.racks || !D.S.racks.length) { D.setStatus('Nothing to export yet — load data successfully first.', 'warn'); return; }
     var snap = JSON.stringify(D.snapshotPayload()).replace(/</g, '\\u003c');
     var html = '<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="utf-8">'
-      + '<title>C4143 DV-Scale Rack Test Status Dashboard (Offline snapshot)</title></head><body>'
+      + '<title>' + D.xmlEsc(D.activeQuery().name) + ' Test Status Dashboard (Offline snapshot)</title></head><body>'
       + '<script id="dvdash-snapshot" type="application/json">' + snap + '<\/script>'
       + '<script>\nvar extensionContext = null;\nvar D = {};\n' + D.serialize()
       + '\nD.EMBEDDED = JSON.parse(document.getElementById("dvdash-snapshot").textContent);'
@@ -1647,7 +1778,7 @@
     var blob = new Blob([html], { type: 'text/html;charset=utf-8' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = 'C4143-DVScale-Dashboard-snapshot.html';
+    a.download = D.reportPrefix() + '-Dashboard-snapshot.html';
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
     D.setStatus('Exported offline snapshot HTML containing ' + D.collect({ children: D.S.racks, type: 'x' }, 'Test Case').length + ' test cases. It can be opened offline on any computer.', 'info');
@@ -1663,6 +1794,7 @@
       D.S.range = localStorage.getItem('dvdashRange') || D.S.range || 'all';
       D.S.chartType = localStorage.getItem('dvdashType') || D.S.chartType || 'pie';
     } catch (e) { }
+    D.loadQueryCatalog();
     D.buildShell(); D.persistWire(); D.load();
   };
   D.boot();
