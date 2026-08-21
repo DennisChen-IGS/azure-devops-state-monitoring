@@ -3,7 +3,7 @@
   "id": "c4143-dvscale-dashboard",
   "version": "1.1.0",
   "name": "C4143 DV-Scale Dashboard",
-  "description": "Switch between read-only project Queries for Rack status, Analytics trends, Test Results, reports and snapshot changes inside Azure DevOps.",
+  "description": "Switch between read-only project Queries for Rack status, Test Results, XLSX reports and snapshot changes inside Azure DevOps.",
   "publisher": "alan512627",
   "public": false,
   "categories": ["Azure Boards", "Azure Test Plans"],
@@ -13,7 +13,7 @@
   "icons": {
     "default": "img/icon.svg"
   },
-  "scopes": ["vso.work", "vso.test", "vso.analytics"],
+  "scopes": ["vso.work", "vso.test"],
   "demands": ["environment/cloud", "contribution/ms.vss-dashboards-web.widget-catalog"],
   "contributions": [
     {
