@@ -59,7 +59,7 @@
     /^\/_apis\/projects\/?$/i.test(location.pathname);
   if (!isDashboardEntry) return;
   var D = {};
-  D.CFG = {"org":"https://dev.azure.com/AzureCSI","orgName":"AzureCSI","project":"Building Block","queryId":"50688ad4-1527-45bf-ad31-fbb71ac39c2f","queryUrl":"https://dev.azure.com/AzureCSI/Building%20Block/_queries/query/50688ad4-1527-45bf-ad31-fbb71ac39c2f/","testPlanId":3526376,"rootSuiteId":3526377,"testResultDays":28};
+  D.CFG = {"org":"https://azurecsi.visualstudio.com","orgName":"azurecsi","project":"Building Block","queryId":"df6c6860-58a1-483f-a6b0-de287fe6e951","queryUrl":"https://azurecsi.visualstudio.com/Building%20Block/_queries/query/df6c6860-58a1-483f-a6b0-de287fe6e951/","testResultDays":28};
   if (extensionContext) {
     D.CFG.org = String(extensionContext.org || D.CFG.org).replace(/\/+$/, '');
     D.CFG.orgName = extensionContext.orgName || D.CFG.orgName;
@@ -67,7 +67,7 @@
     D.CFG.queryUrl = D.CFG.org + '/' + encodeURIComponent(D.CFG.project) + '/_queries/query/' + D.CFG.queryId + '/';
   }
   D.DEFAULT_QUERIES = [
-    { name: '[C9A16][DV][SIT] SIT Test Plan', org: 'https://dev.azure.com/AzureCSI', orgName: 'AzureCSI', project: 'Building Block', queryId: '50688ad4-1527-45bf-ad31-fbb71ac39c2f', queryUrl: 'https://dev.azure.com/AzureCSI/Building%20Block/_testPlans/define?planId=3526376&suiteId=3526377', testPlanId: 3526376, rootSuiteId: 3526377, builtin: true }
+    { name: '[C9A16][DV][SIT] Building Block', org: 'https://azurecsi.visualstudio.com', orgName: 'azurecsi', project: 'Building Block', queryId: 'df6c6860-58a1-483f-a6b0-de287fe6e951', queryUrl: 'https://azurecsi.visualstudio.com/Building%20Block/_queries/query/df6c6860-58a1-483f-a6b0-de287fe6e951/', builtin: true }
   ];
   D.STATE_COLORS = {"Not Started":"#94a3b8","New":"#60a5fa","Proposed":"#f5b544","Design":"#a78bfa","In Progress":"#818cf8","Active":"#818cf8","Ready":"#38bdf8","Committed":"#22d3ee","Passed":"#34d399","Closed":"#2dd4bf","Done":"#2dd4bf","Completed":"#2dd4bf","Failed":"#f87171","Blocked":"#fb7185","Removed":"#9ca3af","Resolved":"#22d3ee","Paused":"#fbbf24"};
   D.TYPE_COLORS = {"Epic":"#c084fc","Feature":"#38bdf8","System Requirement":"#fbbf24","Test Case":"#34d399","User Story":"#818cf8","Task":"#60a5fa","Bug":"#fb7185","Issue":"#fb923c"};
@@ -1706,7 +1706,7 @@
     if (D.EMBEDDED && D.EMBEDDED.racks) return D.EMBEDDED;
     try {
       var raw = localStorage.getItem(D.snapshotStorageKey('dvdashSnapshot'));
-      if (!raw && D.CFG.queryId === '50688ad4-1527-45bf-ad31-fbb71ac39c2f') raw = localStorage.getItem('dvdashSnapshot');
+      if (!raw && D.CFG.queryId === 'df6c6860-58a1-483f-a6b0-de287fe6e951') raw = localStorage.getItem('dvdashSnapshot');
       return raw ? JSON.parse(raw) : null;
     } catch (e) { return null; }
   };

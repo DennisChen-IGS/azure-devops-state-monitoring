@@ -3,7 +3,7 @@ import type { WidgetSettings, WidgetStatus } from "azure-devops-extension-api/Da
 
 const WIDGET_STATUS_SUCCESS = 0;
 
-const TEST_PLAN_ID = 3526376;
+const QUERY_ID = "df6c6860-58a1-483f-a6b0-de287fe6e951";
 const colors: Record<string, string> = {
   "Not Started": "#94a3b8", "In Progress": "#818cf8", Blocked: "#fb7185", Closed: "#2dd4bf", Passed: "#34d399", Failed: "#f87171"
 };
@@ -32,21 +32,16 @@ async function loadSummary(): Promise<Summary> {
   if (!project) throw new Error("Project context is unavailable");
   const token = await SDK.getAccessToken();
   const base = `https://dev.azure.com/${encodeURIComponent(host.name)}/${encodeURIComponent(project)}`;
-  const suiteResponse = await apiFetch(`${base}/_apis/testplan/Plans/${TEST_PLAN_ID}/suites?expand=Children&api-version=7.1`, token);
-  const suites: any[] = suiteResponse.value || [];
+  const wiql = await apiFetch(`${base}/_apis/wit/wiql/${QUERY_ID}?api-version=7.1&$top=5000`, token);
+  const ids = new Set<number>();
+  (wiql.workItemRelations || []).forEach((relation: any) => { if (relation.source?.id) ids.add(relation.source.id); if (relation.target?.id) ids.add(relation.target.id); });
+  (wiql.workItems || []).forEach((item: any) => { if (item.id) ids.add(item.id); });
   const values: any[] = [];
-  let cursor = 0;
-  async function worker(): Promise<void> {
-    while (cursor < suites.length) {
-      const suite = suites[cursor++];
-      const response = await apiFetch(`${base}/_apis/testplan/Plans/${TEST_PLAN_ID}/Suites/${suite.id}/TestCase?api-version=7.1`, token);
-      values.push(...(response.value || []).map((entry: any) => {
-        const fields = Object.assign({}, ...(entry.workItem?.workItemFields || []));
-        return { id: entry.workItem?.id, fields: { "System.WorkItemType": "Test Case", "System.State": fields["System.State"] } };
-      }));
-    }
+  const idList = [...ids];
+  for (let index = 0; index < idList.length; index += 200) {
+    const batch = await apiFetch(`${base}/_apis/wit/workitemsbatch?api-version=7.1`, token, { method: "POST", body: JSON.stringify({ ids: idList.slice(index, index + 200), fields: ["System.WorkItemType", "System.State"] }) });
+    values.push(...(batch.value || []));
   }
-  await Promise.all(Array.from({ length: Math.min(8, suites.length) }, worker));
   const states: Record<string, number> = {};
   const unique = new Map<number, any>();
   values.forEach((item) => { if (item.id) unique.set(item.id, item); });

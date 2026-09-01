@@ -4,17 +4,17 @@
 
 - Organization：`AzureCSI`
 - Project：`Building Block`
-- Saved Query：`50688ad4-1527-45bf-ad31-fbb71ac39c2f`
+- Saved Query：`df6c6860-58a1-483f-a6b0-de287fe6e951`
 - Test Plan：`3526376`（`[C9A16][DV][SIT] SIT Test Plan`）
 - Root Suite：`3526377`
 
 Tampermonkey 專用入口：
 
 ```text
-https://dev.azure.com/AzureCSI/_apis/projects?api-version=7.1#dvdash
+https://azurecsi.visualstudio.com/_apis/projects?api-version=7.1#dvdash
 ```
 
-Dashboard 使用目前瀏覽器的 Azure DevOps 登入狀態，不保存 PAT。若 Query 沒有 Rack Feature 階層，會自動切換成 `All Test Cases` 通用視圖。`Custom.AutomationStatusTestCase` 會顯示在既有的 `Script type` 欄位與匯出報表中。
+Dashboard 使用目前瀏覽器的 Azure DevOps 登入狀態，不保存 PAT。主資料源為上述 Saved Query；若 Query 沒有 Rack Feature 階層，會自動切換成 `All Test Cases` 通用視圖。`Custom.AutomationStatusTestCase` 會顯示在既有的 `Script type` 欄位與匯出報表中。
 
 > 注意：Saved Query 決定主畫面包含哪些 Work Items。若要完整呈現 Test Plan 的 540 筆 Test Case，Saved Query 本身必須回傳這 540 筆，或在 Dashboard 的 **Add / manage** 加入正確 Query URL。
 
