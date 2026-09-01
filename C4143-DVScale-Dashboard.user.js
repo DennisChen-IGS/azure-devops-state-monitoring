@@ -1,13 +1,14 @@
 // ==UserScript==
-// @name         C4143 DV-Scale Rack Test Status Dashboard
+// @name         C9A16 Building Block ADO Statistics Dashboard
 // @namespace    local.ado.dvscale.dashboard
-// @version      1.10.0
+// @version      1.11.0
 // @description  Adds a multi-project Query selector, real Test Results, XLSX exports, query-scoped snapshots, and Extension support.
-// @homepageURL  https://github.com/alan512627/azure-devops-state-monitoring
-// @supportURL   https://github.com/alan512627/azure-devops-state-monitoring/issues
-// @updateURL    https://raw.githubusercontent.com/alan512627/azure-devops-state-monitoring/main/C4143-DVScale-Dashboard.user.js
-// @downloadURL  https://raw.githubusercontent.com/alan512627/azure-devops-state-monitoring/main/C4143-DVScale-Dashboard.user.js
+// @homepageURL  https://github.com/DennisChen-IGS/azure-devops-state-monitoring
+// @supportURL   https://github.com/DennisChen-IGS/azure-devops-state-monitoring/issues
+// @updateURL    https://raw.githubusercontent.com/DennisChen-IGS/azure-devops-state-monitoring/main/C4143-DVScale-Dashboard.user.js
+// @downloadURL  https://raw.githubusercontent.com/DennisChen-IGS/azure-devops-state-monitoring/main/C4143-DVScale-Dashboard.user.js
 // @match        https://azurecsi.visualstudio.com/*
+// @match        https://dev.azure.com/AzureCSI/*
 // @run-at       document-idle
 // @grant        none
 // ==/UserScript==
@@ -58,7 +59,7 @@
     /^\/_apis\/projects\/?$/i.test(location.pathname);
   if (!isDashboardEntry) return;
   var D = {};
-  D.CFG = {"org":"https://azurecsi.visualstudio.com","orgName":"azurecsi","project":"Dev","queryId":"9254024e-6a97-44ed-953b-1aa07d38fb48","queryUrl":"https://azurecsi.visualstudio.com/Dev/_queries/query/9254024e-6a97-44ed-953b-1aa07d38fb48/","testResultDays":28};
+  D.CFG = {"org":"https://dev.azure.com/AzureCSI","orgName":"AzureCSI","project":"Building Block","queryId":"50688ad4-1527-45bf-ad31-fbb71ac39c2f","queryUrl":"https://dev.azure.com/AzureCSI/Building%20Block/_queries/query/50688ad4-1527-45bf-ad31-fbb71ac39c2f/","testPlanId":3526376,"rootSuiteId":3526377,"testResultDays":28};
   if (extensionContext) {
     D.CFG.org = String(extensionContext.org || D.CFG.org).replace(/\/+$/, '');
     D.CFG.orgName = extensionContext.orgName || D.CFG.orgName;
@@ -66,8 +67,7 @@
     D.CFG.queryUrl = D.CFG.org + '/' + encodeURIComponent(D.CFG.project) + '/_queries/query/' + D.CFG.queryId + '/';
   }
   D.DEFAULT_QUERIES = [
-    { name: 'C4143_DV-Scale', org: 'https://azurecsi.visualstudio.com', orgName: 'azurecsi', project: 'Dev', queryId: '9254024e-6a97-44ed-953b-1aa07d38fb48', queryUrl: 'https://azurecsi.visualstudio.com/Dev/_queries/query/9254024e-6a97-44ed-953b-1aa07d38fb48/', builtin: true },
-    { name: '[EchoFalls][C4142][PSE] EVT - Scale Testing', org: 'https://azurecsi.visualstudio.com', orgName: 'azurecsi', project: 'Dev', queryId: '6e06c765-2ff5-43c4-80c6-e78438eea6d9', queryUrl: 'https://azurecsi.visualstudio.com/Dev/_queries/query/6e06c765-2ff5-43c4-80c6-e78438eea6d9/', builtin: true }
+    { name: '[C9A16][DV][SIT] SIT Test Plan', org: 'https://dev.azure.com/AzureCSI', orgName: 'AzureCSI', project: 'Building Block', queryId: '50688ad4-1527-45bf-ad31-fbb71ac39c2f', queryUrl: 'https://dev.azure.com/AzureCSI/Building%20Block/_testPlans/define?planId=3526376&suiteId=3526377', testPlanId: 3526376, rootSuiteId: 3526377, builtin: true }
   ];
   D.STATE_COLORS = {"Not Started":"#94a3b8","New":"#60a5fa","Proposed":"#f5b544","Design":"#a78bfa","In Progress":"#818cf8","Active":"#818cf8","Ready":"#38bdf8","Committed":"#22d3ee","Passed":"#34d399","Closed":"#2dd4bf","Done":"#2dd4bf","Completed":"#2dd4bf","Failed":"#f87171","Blocked":"#fb7185","Removed":"#9ca3af","Resolved":"#22d3ee","Paused":"#fbbf24"};
   D.TYPE_COLORS = {"Epic":"#c084fc","Feature":"#38bdf8","System Requirement":"#fbbf24","Test Case":"#34d399","User Story":"#818cf8","Task":"#60a5fa","Bug":"#fb7185","Issue":"#fb923c"};
@@ -79,7 +79,7 @@
     sampleSize: { aliases: ['Sample Size', 'Test Sample Size', 'Sample Count', 'Samples'] },
     numberOfCycles: { fallback: 'Custom.Number_of_cycles', aliases: ['Number_of_cycles', 'Number of cycles', 'Number of Cycles'] },
     testDuration: { aliases: ['Test Duration', 'Estimated Test Duration', 'Duration', 'Test Time'] },
-    scriptType: { aliases: ['Script type', 'Script Type'] },
+    scriptType: { fallback: 'Custom.AutomationStatusTestCase', aliases: ['Automation Status Test Case', 'AutomationStatusTestCase', 'Script type', 'Script Type'] },
     crcSdk: { aliases: ['CRC SDK', 'CRC SDK Version'] },
     igsOwner: { aliases: ['IGS Owner'] },
     comments: { aliases: ['Comments', 'Comment'] }
@@ -133,6 +133,8 @@
   D.applyQuery = function (query, persist) {
     if (!query) return;
     ['org', 'orgName', 'project', 'queryId', 'queryUrl'].forEach(function (key) { D.CFG[key] = query[key]; });
+    D.CFG.testPlanId = query.testPlanId || null;
+    D.CFG.rootSuiteId = query.rootSuiteId || null;
     D.S.activeQueryKey = D.queryKey(query);
     if (persist !== false) { try { localStorage.setItem('dvdashActiveQuery', D.S.activeQueryKey); } catch (error) { } }
   };
@@ -239,7 +241,49 @@
     if (!referenceName || !fields || fields[referenceName] == null || fields[referenceName] === '') return null;
     return fields[referenceName];
   };
+  D.runTestPlan = async function () {
+    var base = D.baseFor(), projectPath = '/' + encodeURIComponent(D.CFG.project), planId = D.CFG.testPlanId;
+    var suiteResponse = await D.apiFetch(base + projectPath + '/_apis/testplan/Plans/' + encodeURIComponent(planId) + '/suites?expand=Children&api-version=7.1');
+    var suites = suiteResponse.value || [], entriesBySuite = {}, cursor = 0;
+    async function worker() {
+      while (cursor < suites.length) {
+        var suite = suites[cursor++];
+        var response = await D.apiFetch(base + projectPath + '/_apis/testplan/Plans/' + encodeURIComponent(planId) + '/Suites/' + encodeURIComponent(suite.id) + '/TestCase?api-version=7.1');
+        entriesBySuite[suite.id] = response.value || [];
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(8, suites.length) }, worker));
+    function flattenFields(entry) {
+      var fields = {};
+      (entry.workItem && entry.workItem.workItemFields || []).forEach(function (item) { Object.keys(item || {}).forEach(function (key) { fields[key] = item[key]; }); });
+      return fields;
+    }
+    function caseNode(entry) {
+      var fields = flattenFields(entry), assigned = fields['System.AssignedTo'];
+      return { id: entry.workItem.id, type: 'Test Case', title: entry.workItem.name || ('#' + entry.workItem.id), state: fields['System.State'] || 'Unknown',
+        tags: fields['System.Tags'] || '', changed: fields['Microsoft.VSTS.Common.StateChangeDate'] || fields['System.ChangedDate'] || null,
+        assigned: assigned && (assigned.displayName || assigned.name) || String(assigned || ''),
+        metrics: { priority: fields['Microsoft.VSTS.Common.Priority'] || null, sampleSize: null, numberOfCycles: null, testDuration: null },
+        suiteFields: { scriptType: fields['Custom.AutomationStatusTestCase'] || null, crcSdk: fields['Custom.CRCSdk'] || null, igsOwner: null, comments: null },
+        bugs: [], children: [] };
+    }
+    var childrenByParent = {};
+    suites.forEach(function (suite) { if (suite.parentSuite) (childrenByParent[suite.parentSuite.id] = childrenByParent[suite.parentSuite.id] || []).push(suite); });
+    function suiteNode(suite) {
+      var children = (childrenByParent[suite.id] || []).map(suiteNode).concat((entriesBySuite[suite.id] || []).map(caseNode));
+      return { id: suite.id, type: 'Feature', title: suite.name, state: '', tags: '', changed: suite.lastUpdatedDate || null, assigned: '', metrics: {}, suiteFields: {}, bugs: [], children: children, num: 999, label: suite.name };
+    }
+    var topSuites = (childrenByParent[D.CFG.rootSuiteId] || []).map(suiteNode);
+    if (!topSuites.length) {
+      var rootSuite = suites.filter(function (suite) { return suite.id === D.CFG.rootSuiteId; })[0];
+      if (rootSuite) topSuites = [suiteNode(rootSuite)];
+    }
+    var uniqueCases = {};
+    Object.keys(entriesBySuite).forEach(function (suiteId) { (entriesBySuite[suiteId] || []).forEach(function (entry) { uniqueCases[entry.workItem.id] = true; }); });
+    return { racks: topSuites, count: Object.keys(uniqueCases).length };
+  };
   D.runQuery = async function () {
+    if (D.CFG.testPlanId) return D.runTestPlan();
     D.S.bugLinkWarning = '';
     var base = D.baseFor();
     var wiql = await D.apiFetch(base + '/' + encodeURIComponent(D.CFG.project) + '/_apis/wit/wiql/' + D.CFG.queryId + '?api-version=6.0&$top=5000');
@@ -343,6 +387,10 @@
     var racks = rackIds.map(build);
     racks.forEach(function (r) { var m = /rack\s*#?\s*(\d+)/i.exec(r.title); r.num = m ? +m[1] : 999; r.label = m ? 'Rack ' + m[1] : r.title; });
     racks.sort(function (a, b) { return a.num - b.num; });
+    if (!racks.length) {
+      var flatCases = ids.filter(function (id) { return byId[id] && byId[id]['System.WorkItemType'] === 'Test Case'; }).map(build);
+      if (flatCases.length) racks = [{ id: 'all-test-cases', type: 'Feature', title: 'All Test Cases', state: '', tags: '', changed: null, assigned: '', metrics: {}, suiteFields: {}, bugs: [], children: flatCases, num: 1, label: 'All Test Cases' }];
+    }
     return { racks: racks, count: ids.length };
   };
   D.allCases = function () {
@@ -1658,7 +1706,7 @@
     if (D.EMBEDDED && D.EMBEDDED.racks) return D.EMBEDDED;
     try {
       var raw = localStorage.getItem(D.snapshotStorageKey('dvdashSnapshot'));
-      if (!raw && D.CFG.queryId === '9254024e-6a97-44ed-953b-1aa07d38fb48') raw = localStorage.getItem('dvdashSnapshot');
+      if (!raw && D.CFG.queryId === '50688ad4-1527-45bf-ad31-fbb71ac39c2f') raw = localStorage.getItem('dvdashSnapshot');
       return raw ? JSON.parse(raw) : null;
     } catch (e) { return null; }
   };

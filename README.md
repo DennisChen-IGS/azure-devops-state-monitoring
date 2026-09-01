@@ -1,4 +1,28 @@
-# Azure DevOps State Monitoring
+# C9A16 Building Block ADO Statistics Dashboard
+
+此 fork 以原始 Azure DevOps State Monitoring 為基礎，預設連線到下列唯讀資料來源：
+
+- Organization：`AzureCSI`
+- Project：`Building Block`
+- Saved Query：`50688ad4-1527-45bf-ad31-fbb71ac39c2f`
+- Test Plan：`3526376`（`[C9A16][DV][SIT] SIT Test Plan`）
+- Root Suite：`3526377`
+
+Tampermonkey 專用入口：
+
+```text
+https://dev.azure.com/AzureCSI/_apis/projects?api-version=7.1#dvdash
+```
+
+Dashboard 使用目前瀏覽器的 Azure DevOps 登入狀態，不保存 PAT。若 Query 沒有 Rack Feature 階層，會自動切換成 `All Test Cases` 通用視圖。`Custom.AutomationStatusTestCase` 會顯示在既有的 `Script type` 欄位與匯出報表中。
+
+> 注意：Saved Query 決定主畫面包含哪些 Work Items。若要完整呈現 Test Plan 的 540 筆 Test Case，Saved Query 本身必須回傳這 540 筆，或在 Dashboard 的 **Add / manage** 加入正確 Query URL。
+
+## 上游專案
+
+原始來源：[alan512627/azure-devops-state-monitoring](https://github.com/alan512627/azure-devops-state-monitoring)。目前來源 repository 未提供 LICENSE；在取得作者授權前，不應假設可對外再授權或商業散布。
+
+## 原始專案說明
 
 Azure DevOps Rack Test Status Dashboard 提供 Tampermonkey userscript 與原生 Azure DevOps Extension。它能在同一個 Dashboard 切換多個專案 Query，並讀取 Work Items、Test Runs／Results 與 Test Plans，建立 Overview、各 Rack、Insights、Test Features、State、真實測試 Outcome、Priority、Bug、Sample Size、Test Duration、`Number_of_cycles`、週報與快照差異統計。
 
