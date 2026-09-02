@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         C9A16 Building Block ADO Statistics Dashboard
 // @namespace    local.ado.dvscale.dashboard
-// @version      1.11.1
+// @version      1.11.2
 // @description  Adds a multi-project Query selector, real Test Results, XLSX exports, query-scoped snapshots, and Extension support.
 // @homepageURL  https://github.com/DennisChen-IGS/azure-devops-state-monitoring
 // @supportURL   https://github.com/DennisChen-IGS/azure-devops-state-monitoring/issues
@@ -1446,7 +1446,7 @@
     ['Feature', 'System Requirement', 'Test Case'].forEach(function (type) { tl.appendChild(D.typeBadge(type)); });
     ctl.appendChild(tl);
     document.body.appendChild(ctl); D.refreshQuerySelector();
-    D.installStickyOffset();
+    try { D.installStickyOffset(); } catch (stickyError) { /* Layout enhancement must not block data loading. */ }
 
     var banner = D.el('div', 'banner info', 'Preparing to load…'); banner.id = 'banner'; document.body.appendChild(banner);
     var main = D.el('main', 'dashboard-main');
