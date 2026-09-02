@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         C9A16 Building Block ADO Statistics Dashboard
 // @namespace    local.ado.dvscale.dashboard
-// @version      1.11.2
+// @version      1.11.3
 // @description  Adds a multi-project Query selector, real Test Results, XLSX exports, query-scoped snapshots, and Extension support.
 // @homepageURL  https://github.com/DennisChen-IGS/azure-devops-state-monitoring
 // @supportURL   https://github.com/DennisChen-IGS/azure-devops-state-monitoring/issues
@@ -116,7 +116,8 @@
     try {
       var custom = JSON.parse(localStorage.getItem('dvdashQueries') || '[]');
       if (Array.isArray(custom)) custom.forEach(function (query) {
-        if (query && query.orgName && query.project && query.queryId) map[D.queryKey(query)] = Object.assign({}, query, { builtin: false });
+        var key = query && query.orgName && query.project && query.queryId ? D.queryKey(query) : '';
+        if (key && !map[key]) map[key] = Object.assign({}, query, { builtin: false });
       });
     } catch (error) { }
     Object.keys(map).forEach(function (key) { list.push(map[key]); });
