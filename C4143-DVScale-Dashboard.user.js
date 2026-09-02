@@ -1,12 +1,12 @@
 // ==UserScript==
 // @name         C9A16 Building Block ADO Statistics Dashboard
 // @namespace    local.ado.dvscale.dashboard
-// @version      1.11.6
+// @version      1.12.0
 // @description  Adds a multi-project Query selector, real Test Results, XLSX exports, query-scoped snapshots, and Extension support.
 // @homepageURL  https://github.com/DennisChen-IGS/azure-devops-state-monitoring
 // @supportURL   https://github.com/DennisChen-IGS/azure-devops-state-monitoring/issues
-// @updateURL    https://raw.githubusercontent.com/DennisChen-IGS/azure-devops-state-monitoring/codex/building-block-ado-dashboard/C4143-DVScale-Dashboard.user.js?v=1.11.6
-// @downloadURL  https://raw.githubusercontent.com/DennisChen-IGS/azure-devops-state-monitoring/codex/building-block-ado-dashboard/C4143-DVScale-Dashboard.user.js?v=1.11.6
+// @updateURL    https://raw.githubusercontent.com/DennisChen-IGS/azure-devops-state-monitoring/codex/building-block-ado-dashboard/C4143-DVScale-Dashboard.user.js?v=1.12.0
+// @downloadURL  https://raw.githubusercontent.com/DennisChen-IGS/azure-devops-state-monitoring/codex/building-block-ado-dashboard/C4143-DVScale-Dashboard.user.js?v=1.12.0
 // @match        https://azurecsi.visualstudio.com/*
 // @match        https://dev.azure.com/AzureCSI/*
 // @run-at       document-idle
@@ -67,7 +67,8 @@
     D.CFG.queryUrl = D.CFG.org + '/' + encodeURIComponent(D.CFG.project) + '/_queries/query/' + D.CFG.queryId + '/';
   }
   D.DEFAULT_QUERIES = [
-    { name: '[C9A16][DV][SIT] Building Block', org: 'https://azurecsi.visualstudio.com', orgName: 'azurecsi', project: 'Building Block', queryId: 'df6c6860-58a1-483f-a6b0-de287fe6e951', queryUrl: 'https://azurecsi.visualstudio.com/Building%20Block/_queries/query/df6c6860-58a1-483f-a6b0-de287fe6e951/', builtin: true }
+    { name: '[C9A16][DV][SIT] Building Block', org: 'https://azurecsi.visualstudio.com', orgName: 'azurecsi', project: 'Building Block', queryId: 'df6c6860-58a1-483f-a6b0-de287fe6e951', queryUrl: 'https://azurecsi.visualstudio.com/Building%20Block/_queries/query/df6c6860-58a1-483f-a6b0-de287fe6e951/', sourceType: 'query', builtin: true },
+    { name: '[C4143] PSE DVT - System Integration Test Plan', org: 'https://azurecsi.visualstudio.com', orgName: 'azurecsi', project: 'Dev', queryId: '', queryUrl: 'https://azurecsi.visualstudio.com/Dev/_testPlans/charts?planId=3823389&suiteId=3823390', testPlanId: '3823389', rootSuiteId: '3823390', sourceType: 'test-plan', builtin: true }
   ];
   D.STATE_COLORS = {"Not Started":"#94a3b8","New":"#60a5fa","Proposed":"#f5b544","Design":"#a78bfa","In Progress":"#818cf8","Active":"#818cf8","Ready":"#38bdf8","Committed":"#22d3ee","Passed":"#34d399","Closed":"#2dd4bf","Done":"#2dd4bf","Completed":"#2dd4bf","Failed":"#f87171","Blocked":"#fb7185","Removed":"#9ca3af","Resolved":"#22d3ee","Paused":"#fbbf24"};
   D.TYPE_COLORS = {"Epic":"#c084fc","Feature":"#38bdf8","System Requirement":"#fbbf24","Test Case":"#34d399","User Story":"#818cf8","Task":"#60a5fa","Bug":"#fb7185","Issue":"#fb923c"};
@@ -86,7 +87,7 @@
   };
   D.S = {racks:[],loadedAt:null,range:"all",chartType:"pie",panels:[],active:0,mode:"live",queries:[],activeQueryKey:'',testResults:{status:"idle",runs:[]},snapshotComparison:null};
   D.el = function (t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; };
-  D.queryKey = function (query) { return [query.orgName, query.project, query.queryId].join('|').toLowerCase(); };
+  D.queryKey = function (query) { return [query.orgName, query.project, query.queryId || ('plan:' + (query.testPlanId || ''))].join('|').toLowerCase(); };
   D.activeQuery = function () {
     var key = D.S.activeQueryKey || D.queryKey(D.CFG);
     return (D.S.queries || []).filter(function (query) { return D.queryKey(query) === key; })[0] || Object.assign({ name: 'Azure DevOps Query' }, D.CFG);
@@ -133,7 +134,7 @@
   };
   D.applyQuery = function (query, persist) {
     if (!query) return;
-    ['org', 'orgName', 'project', 'queryId', 'queryUrl'].forEach(function (key) { D.CFG[key] = query[key]; });
+    ['org', 'orgName', 'project', 'queryId', 'queryUrl', 'sourceType'].forEach(function (key) { D.CFG[key] = query[key]; });
     D.CFG.testPlanId = query.testPlanId || null;
     D.CFG.rootSuiteId = query.rootSuiteId || null;
     D.S.activeQueryKey = D.queryKey(query);
@@ -281,6 +282,7 @@
     }
     var uniqueCases = {};
     Object.keys(entriesBySuite).forEach(function (suiteId) { (entriesBySuite[suiteId] || []).forEach(function (entry) { uniqueCases[entry.workItem.id] = true; }); });
+    D.S.itemMode = 'test-case';
     return { racks: topSuites, count: Object.keys(uniqueCases).length };
   };
   D.runQuery = async function () {
@@ -1346,7 +1348,7 @@
     document.title = query.name + ' Test Status Dashboard';
     var title = document.getElementById('dashboardTitle'); if (title) title.textContent = query.name + rackText;
     var source = document.getElementById('querySource');
-    if (source) { source.textContent = 'Azure DevOps Query: ' + query.name; source.href = query.queryUrl; }
+    if (source) { source.textContent = (query.sourceType === 'test-plan' ? 'Azure DevOps Test Plan: ' : 'Azure DevOps Query: ') + query.name; source.href = query.queryUrl; }
     D.refreshQuerySelector();
   };
   D.switchQuery = function (key) {
@@ -1406,7 +1408,7 @@
     var dashboardTitle = D.el('h1', null, D.activeQuery().name + ' — Test Status Dashboard'); dashboardTitle.id = 'dashboardTitle'; left.appendChild(dashboardTitle);
     var sub = D.el('div', 'sub');
     sub.appendChild(document.createTextNode('Source: '));
-    var qa = D.el('a', null, 'Azure DevOps Query: ' + D.activeQuery().name); qa.id = 'querySource';
+    var qa = D.el('a', null, (D.activeQuery().sourceType === 'test-plan' ? 'Azure DevOps Test Plan: ' : 'Azure DevOps Query: ') + D.activeQuery().name); qa.id = 'querySource';
     qa.href = D.CFG.queryUrl; qa.target = '_blank'; qa.rel = 'noopener'; sub.appendChild(qa);
     sub.appendChild(document.createTextNode(' ·  Every open / refresh of this page re-runs the query using the selected mode'));
     left.appendChild(sub); header.appendChild(left);
