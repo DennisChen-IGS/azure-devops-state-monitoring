@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         C9A16 Building Block ADO Statistics Dashboard
 // @namespace    local.ado.dvscale.dashboard
-// @version      1.11.3
+// @version      1.11.4
 // @description  Adds a multi-project Query selector, real Test Results, XLSX exports, query-scoped snapshots, and Extension support.
 // @homepageURL  https://github.com/DennisChen-IGS/azure-devops-state-monitoring
 // @supportURL   https://github.com/DennisChen-IGS/azure-devops-state-monitoring/issues
@@ -388,7 +388,7 @@
     var racks = rackIds.map(build);
     racks.forEach(function (r) { var m = /rack\s*#?\s*(\d+)/i.exec(r.title); r.num = m ? +m[1] : 999; r.label = m ? 'Rack ' + m[1] : r.title; });
     racks.sort(function (a, b) { return a.num - b.num; });
-    D.S.itemMode = items.some(function (it) { return it.fields && it.fields['System.WorkItemType'] === 'Test Case'; }) ? 'test-case' : 'work-item';
+    D.S.itemMode = rackIds.length || (items.length && items.every(function (it) { return it.fields && it.fields['System.WorkItemType'] === 'Test Case'; })) ? 'test-case' : 'work-item';
     if (!racks.length) {
       var flatItems = ids.filter(function (id) { return byId[id]; }).map(build);
       if (flatItems.length) racks = [{ id: 'all-work-items', type: 'Query', title: 'All Work Items', state: '', tags: '', changed: null, assigned: '', metrics: {}, suiteFields: {}, bugs: [], children: flatItems, num: 1, label: 'All Work Items' }];
@@ -397,7 +397,7 @@
   };
   D.allCases = function () {
     var cases = [];
-    (D.S.racks || []).forEach(function (rack) { cases = cases.concat(D.collect(rack, 'Test Case')); });
+    if (D.S.itemMode === 'test-case') (D.S.racks || []).forEach(function (rack) { cases = cases.concat(D.collect(rack, 'Test Case')); });
     if (!cases.length) (D.S.racks || []).forEach(function (rack) {
       (rack.children || []).forEach(function visit(node) {
         if (!(node.children || []).length) cases.push(node);
@@ -407,7 +407,7 @@
     return cases;
   };
   D.itemsIn = function (node) {
-    var cases = D.collect(node, 'Test Case');
+    var cases = D.S.itemMode === 'test-case' ? D.collect(node, 'Test Case') : [];
     if (cases.length) return cases;
     var items = [];
     (node.children || []).forEach(function visit(child) {
@@ -1646,7 +1646,9 @@
         return;
       }
       D.S.racks = s.racks; D.S.loadedAt = s.savedAt || null; D.S.snapshotMode = true; D.S.bugLinkWarning = ''; D.S.metricFieldWarning = '';
-      D.S.itemMode = D.allCases().some(function (item) { return item.type === 'Test Case'; }) ? 'test-case' : 'work-item';
+      var snapshotLeaves = [];
+      (D.S.racks || []).forEach(function (rack) { snapshotLeaves = snapshotLeaves.concat(D.itemsIn(rack)); });
+      D.S.itemMode = snapshotLeaves.length && snapshotLeaves.every(function (item) { return item.type === 'Test Case'; }) ? 'test-case' : 'work-item';
       D.S.testResults = s.testResults || { status: 'unavailable', runs: [], error: 'This snapshot predates Test Result storage.' };
       D.S.snapshotComparison = s.snapshotComparison || { status: 'first', previousAt: null, currentAt: D.S.loadedAt, added: [], removed: [], stateChanged: [], updatedThisWeek: [] };
       document.getElementById('updated').textContent = 'Snapshot: ' + D.fmt(D.S.loadedAt);
