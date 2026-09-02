@@ -45,7 +45,7 @@ async function loadSummary(): Promise<Summary> {
   const states: Record<string, number> = {};
   const unique = new Map<number, any>();
   values.forEach((item) => { if (item.id) unique.set(item.id, item); });
-  [...unique.values()].filter((item) => item.fields?.["System.WorkItemType"] === "Test Case").forEach((item) => {
+  [...unique.values()].forEach((item) => {
     const state = item.fields["System.State"] || "Unknown";
     states[state] = (states[state] || 0) + 1;
   });
@@ -58,7 +58,7 @@ function render(summary: Summary, title: string): void {
   const root = document.getElementById("widget-root")!;
   const max = Math.max(1, ...Object.values(summary.states));
   const rows = Object.entries(summary.states).sort((a, b) => b[1] - a[1]).map(([state, count]) => `<div class="state-row"><span>${escapeHtml(state)}</span><div class="state-track"><div class="state-fill" style="width:${count * 100 / max}%;background:${colors[state] || "#38bdf8"}"></div></div><span class="state-value">${count}</span></div>`).join("");
-  root.innerHTML = `<h2>${escapeHtml(title)}</h2><div class="total"><strong>${summary.total}</strong><span>live test cases</span></div><div class="state-list">${rows}</div><div class="footer"><span class="updated">Updated ${summary.updatedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span><a class="open-link" target="_top" href="${escapeHtml(summary.hubUrl)}">Open full dashboard</a></div>`;
+  root.innerHTML = `<h2>${escapeHtml(title)}</h2><div class="total"><strong>${summary.total}</strong><span>live query work items</span></div><div class="state-list">${rows}</div><div class="footer"><span class="updated">Updated ${summary.updatedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span><a class="open-link" target="_top" href="${escapeHtml(summary.hubUrl)}">Open full dashboard</a></div>`;
 }
 
 async function update(widgetSettings: WidgetSettings): Promise<WidgetStatus> {

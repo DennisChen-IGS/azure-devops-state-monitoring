@@ -387,16 +387,33 @@
     var racks = rackIds.map(build);
     racks.forEach(function (r) { var m = /rack\s*#?\s*(\d+)/i.exec(r.title); r.num = m ? +m[1] : 999; r.label = m ? 'Rack ' + m[1] : r.title; });
     racks.sort(function (a, b) { return a.num - b.num; });
+    D.S.itemMode = items.some(function (it) { return it.fields && it.fields['System.WorkItemType'] === 'Test Case'; }) ? 'test-case' : 'work-item';
     if (!racks.length) {
-      var flatCases = ids.filter(function (id) { return byId[id] && byId[id]['System.WorkItemType'] === 'Test Case'; }).map(build);
-      if (flatCases.length) racks = [{ id: 'all-test-cases', type: 'Feature', title: 'All Test Cases', state: '', tags: '', changed: null, assigned: '', metrics: {}, suiteFields: {}, bugs: [], children: flatCases, num: 1, label: 'All Test Cases' }];
+      var flatItems = ids.filter(function (id) { return byId[id]; }).map(build);
+      if (flatItems.length) racks = [{ id: 'all-work-items', type: 'Query', title: 'All Work Items', state: '', tags: '', changed: null, assigned: '', metrics: {}, suiteFields: {}, bugs: [], children: flatItems, num: 1, label: 'All Work Items' }];
     }
     return { racks: racks, count: ids.length };
   };
   D.allCases = function () {
     var cases = [];
     (D.S.racks || []).forEach(function (rack) { cases = cases.concat(D.collect(rack, 'Test Case')); });
+    if (!cases.length) (D.S.racks || []).forEach(function (rack) {
+      (rack.children || []).forEach(function visit(node) {
+        if (!(node.children || []).length) cases.push(node);
+        else (node.children || []).forEach(visit);
+      });
+    });
     return cases;
+  };
+  D.itemsIn = function (node) {
+    var cases = D.collect(node, 'Test Case');
+    if (cases.length) return cases;
+    var items = [];
+    (node.children || []).forEach(function visit(child) {
+      if (!(child.children || []).length) items.push(child);
+      else (child.children || []).forEach(visit);
+    });
+    return items;
   };
   D.mapLimit = async function (items, limit, worker) {
     var results = new Array(items.length), cursor = 0;
@@ -1093,7 +1110,7 @@
     return row;
   };
   D.tree = function (node, level) {
-    if (node.type === 'Test Case') return D.caseRow(node);
+    if (node.type === 'Test Case' || !(node.children || []).length) return D.caseRow(node);
     var d = D.el('details', 'node lvl' + Math.min(level, 3)), sm = D.el('summary');
     D.decorateBlock(d, node.type, node.state);
     sm.appendChild(D.el('span', 'ntitle', node.title));
@@ -1460,9 +1477,10 @@
     D.updateIdentity();
     var tabsBar = document.getElementById('tabs'), host = document.getElementById('panels');
     tabsBar.innerHTML = ''; host.innerHTML = ''; D.S.panels = [];
-    var defs = [{ kind: 'ov', label: 'Overview (' + D.S.racks.length + ' Racks)' }]
+    var generic = D.S.itemMode === 'work-item';
+    var defs = [{ kind: 'ov', label: generic ? 'Query Overview' : 'Overview (' + D.S.racks.length + ' Racks)' }]
       .concat(D.S.racks.map(function (r) { return { kind: 'rack', label: r.label, rack: r }; }))
-      .concat([{ kind: 'insights', label: 'Insights' }, { kind: 'suite', label: 'Test Features' }]);
+      .concat(generic ? [] : [{ kind: 'insights', label: 'Insights' }, { kind: 'suite', label: 'Test Features' }]);
     defs.forEach(function (def, idx) {
       var tab = D.el('button', 'tab' + (idx === D.S.active ? ' active' : ''), def.label);
       tab.setAttribute('role', 'tab'); tab.setAttribute('aria-selected', idx === D.S.active ? 'true' : 'false');
@@ -1473,15 +1491,15 @@
       var refs = { kind: def.kind, rack: def.rack, panel: panel, tab: tab };
       var cards = D.el('div', 'cards');
       if (def.kind === 'ov') {
-        refs.cRacks = D.card('RACKS', D.S.racks.length, '#38bdf8');
+        refs.cRacks = D.card(generic ? 'QUERY GROUPS' : 'RACKS', D.S.racks.length, '#38bdf8');
         refs.cFeat = D.card('FEATURES', 0, '#c084fc');
         refs.cReq = D.card('SYSTEM REQS', 0, '#fbbf24');
-        refs.cCase = D.card('TOTAL TEST CASES', '-', '#34d399');
+        refs.cCase = D.card(generic ? 'TOTAL WORK ITEMS' : 'TOTAL TEST CASES', '-', '#34d399');
         refs.cFiltered = D.card('UPDATED IN RANGE', 0, '#60a5fa');
-        refs.cPass = D.card('PASS CASES / RATE', '-', '#2dd4bf');
-        refs.cFail = D.card('FAIL CASES (BLOCKED) / RATE', '-', '#fb7185');
-        refs.cProgress = D.card('IN PROGRESS CASES', 0, '#818cf8');
-        refs.cBugs = D.card('BUGS / AFFECTED CASES', '-', '#fb923c');
+        refs.cPass = D.card(generic ? 'CLOSED / RATE' : 'PASS CASES / RATE', '-', '#2dd4bf');
+        refs.cFail = D.card(generic ? 'BLOCKED / RATE' : 'FAIL CASES (BLOCKED) / RATE', '-', '#fb7185');
+        refs.cProgress = D.card(generic ? 'ACTIVE / IN PROGRESS' : 'IN PROGRESS CASES', 0, '#818cf8');
+        refs.cBugs = D.card(generic ? 'BUG WORK ITEMS' : 'BUGS / AFFECTED CASES', '-', '#fb923c');
         refs.cPass.title = 'Closed Test Cases are counted as Pass. Rate denominator: Test Cases in the selected time range.';
         refs.cFail.title = 'Blocked Test Cases are counted as Fail. Rate denominator: Test Cases in the selected time range.';
         refs.cProgress.title = 'Test Cases whose current Azure DevOps State is In Progress.';
@@ -1489,25 +1507,25 @@
         [refs.cRacks, refs.cFeat, refs.cReq, refs.cCase, refs.cFiltered, refs.cPass, refs.cFail, refs.cProgress, refs.cBugs].forEach(function (c) { cards.appendChild(c); });
         var stickyTop = D.el('div', 'panel-sticky'); stickyTop.appendChild(cards); panel.appendChild(stickyTop);
         var grid = D.el('div', 'grid');
-        var b1 = D.box('Test Case state distribution — all Racks');
+        var b1 = D.box(generic ? 'Work item state distribution' : 'Test Case state distribution — all Racks');
         refs.chartHost = D.el('div', 'chartwrap'); b1.appendChild(refs.chartHost);
         refs.legendHost = D.el('div'); b1.appendChild(refs.legendHost);
-        var b2 = D.box('Rack comparison (stacked bar)');
+        var b2 = D.box(generic ? 'Query group comparison (stacked bar)' : 'Rack comparison (stacked bar)');
         refs.cmpHost = D.el('div', 'chartwrap'); b2.appendChild(refs.cmpHost);
         grid.appendChild(b1); grid.appendChild(b2); panel.appendChild(grid);
-        var b3 = D.box('Rack × State summary table');
+        var b3 = D.box(generic ? 'Query group × State summary table' : 'Rack × State summary table');
         refs.tableBox = D.el('div'); b3.appendChild(refs.tableBox); panel.appendChild(b3);
         var bPriority = D.box('Test Case completion by Priority — Closed = completed');
         refs.priorityBox = D.el('div'); bPriority.appendChild(refs.priorityBox); panel.appendChild(bPriority);
         var bMetrics = D.box('Sample Size, Number_of_cycles & Test Duration — largest / longest first');
         refs.metricBox = D.el('div'); bMetrics.appendChild(refs.metricBox); panel.appendChild(bMetrics);
-        var b4 = D.box('Linked Bug tracking — from Test Case Links');
+        var b4 = D.box(generic ? 'Linked Bug tracking (when links are available)' : 'Linked Bug tracking — from Test Case Links');
         refs.bugStatsBox = D.el('div'); b4.appendChild(refs.bugStatsBox);
         refs.bugBox = D.el('div', 'bug-detail-scroll'); b4.appendChild(refs.bugBox); panel.appendChild(b4);
       } else if (def.kind === 'rack') {
         refs.cFeat = D.card('FEATURES', 0, '#c084fc');
         refs.cReq = D.card('SYSTEM REQS', 0, '#fbbf24');
-        refs.cCase = D.card('TEST CASES', '-', '#34d399');
+        refs.cCase = D.card(generic ? 'WORK ITEMS' : 'TEST CASES', '-', '#34d399');
         refs.cFiltered = D.card('UPDATED IN RANGE', 0, '#60a5fa');
         refs.cBugs = D.card('LINKED BUGS', 0, '#f87171');
         refs.cBugs.title = 'Unique Bug work items linked from Test Cases in this Rack.';
@@ -1524,7 +1542,7 @@
         refs.priorityBox = D.el('div'); rbPriority.appendChild(refs.priorityBox); panel.appendChild(rbPriority);
         var rbMetrics = D.box('Sample Size, Number_of_cycles & Test Duration — largest / longest first');
         refs.metricBox = D.el('div'); rbMetrics.appendChild(refs.metricBox); panel.appendChild(rbMetrics);
-        var tb = D.box('Feature → System Requirement → Test Case (click to expand)');
+        var tb = D.box(generic ? 'Query work items' : 'Feature → System Requirement → Test Case (click to expand)');
         var bar = D.el('div', 'tree-toolbar');
         var bExp = D.el('button', null, 'Expand all'), bCol = D.el('button', null, 'Collapse all');
         var search = D.el('input'); search.placeholder = 'Search case title / ID / state / bug …'; search.style.minWidth = '0';
@@ -1556,9 +1574,8 @@
   };
   D.latest = function (cases) { var b = null; cases.forEach(function (c) { if (c.changed && (!b || c.changed > b)) b = c.changed; }); return b; };
   D.refresh = function () {
-    var allCases = [], allFeat = [], allReq = [];
+    var allCases = D.allCases(), allFeat = [], allReq = [];
     D.S.racks.forEach(function (r) {
-      allCases = allCases.concat(D.collect(r, 'Test Case'));
       allFeat = allFeat.concat(D.collect(r, 'Feature'));
       allReq = allReq.concat(D.collect(r, 'System Requirement'));
     });
@@ -1575,7 +1592,9 @@
         p.cPass._val.textContent = D.outcomeValue(outcomes.pass, outcomes.passRate);
         p.cFail._val.textContent = D.outcomeValue(outcomes.fail, outcomes.failRate);
         p.cProgress._val.textContent = outcomes.inProgress;
-        p.cBugs._val.textContent = linkedBugs.length + ' / ' + bugCases.length;
+        p.cBugs._val.textContent = D.S.itemMode === 'work-item'
+          ? allCases.filter(function (item) { return item.type === 'Bug'; }).length
+          : linkedBugs.length + ' / ' + bugCases.length;
         p.tableBox.innerHTML = ''; p.tableBox.appendChild(D.rackTable());
         p.priorityBox.innerHTML = ''; p.priorityBox.appendChild(D.priorityCompletionChart(f));
         p.metricBox.innerHTML = ''; p.metricBox.appendChild(D.metricInventoryPanel(f));
@@ -1585,11 +1604,11 @@
         D.drawInto(p.chartHost, counts);
         p.legendHost.innerHTML = ''; p.legendHost.appendChild(D.legend(counts));
         var stateSet = {};
-        var perRack = D.S.racks.map(function (r) { var m = D.countStates(D.collect(r, 'Test Case').filter(D.inRange)); for (var k in m) stateSet[k] = 1; return m; });
+        var perRack = D.S.racks.map(function (r) { var m = D.countStates(D.itemsIn(r).filter(D.inRange)); for (var k in m) stateSet[k] = 1; return m; });
         p.cmpHost.innerHTML = '';
         p.cmpHost.appendChild(D.stacked(D.S.racks.map(function (r) { return r.label; }), perRack, D.orderStates(Object.keys(stateSet))));
       } else if (p.kind === 'rack') {
-        var cs = D.collect(p.rack, 'Test Case'), fc = cs.filter(D.inRange);
+        var cs = D.itemsIn(p.rack), fc = cs.filter(D.inRange);
         p.cFeat._val.textContent = D.collect(p.rack, 'Feature').length;
         p.cReq._val.textContent = D.collect(p.rack, 'System Requirement').length;
         p.cCase._val.textContent = cs.length;
@@ -1612,9 +1631,9 @@
     var src = D.S.snapshotMode ? ('Offline snapshot (' + D.fmt(D.S.loadedAt) + ')') : (ml + ' · ' + D.fmt(D.S.loadedAt) + ' query re-run');
     requestAnimationFrame(D.fitCardValues);
     if (!tf && allCases.length) {
-      D.setStatus(src + ': loaded ' + allCases.length + ' test cases, but nothing was updated within "' + rl + '" — charts are empty. Latest change: ' + D.fmt(D.latest(allCases)) + '.' + bugNote + metricNote + testNote, 'warn');
+      D.setStatus(src + ': loaded ' + allCases.length + (D.S.itemMode === 'work-item' ? ' work items' : ' test cases') + ', but nothing was updated within "' + rl + '" — charts are empty. Latest change: ' + D.fmt(D.latest(allCases)) + '.' + bugNote + metricNote + testNote, 'warn');
     } else if (D.S.racks.length) {
-      D.setStatus(src + ': ' + D.S.racks.length + ' racks, ' + allCases.length + ' test cases, ' + totalLinkedBugs + ' linked Bugs; "' + rl + '" contains ' + tf + ' updated items.' + bugNote + metricNote + testNote, (D.S.bugLinkWarning || D.S.metricFieldWarning || testNote) ? 'warn' : 'info');
+      D.setStatus(src + ': ' + allCases.length + (D.S.itemMode === 'work-item' ? ' work items' : ' test cases') + '; "' + rl + '" contains ' + tf + ' updated items.' + (D.S.itemMode === 'work-item' ? '' : ' ' + totalLinkedBugs + ' linked Bugs.') + bugNote + metricNote + testNote, (D.S.bugLinkWarning || D.S.metricFieldWarning || testNote) ? 'warn' : 'info');
     }
   };
   D.load = async function () {
@@ -1626,6 +1645,7 @@
         return;
       }
       D.S.racks = s.racks; D.S.loadedAt = s.savedAt || null; D.S.snapshotMode = true; D.S.bugLinkWarning = ''; D.S.metricFieldWarning = '';
+      D.S.itemMode = D.allCases().some(function (item) { return item.type === 'Test Case'; }) ? 'test-case' : 'work-item';
       D.S.testResults = s.testResults || { status: 'unavailable', runs: [], error: 'This snapshot predates Test Result storage.' };
       D.S.snapshotComparison = s.snapshotComparison || { status: 'first', previousAt: null, currentAt: D.S.loadedAt, added: [], removed: [], stateChanged: [], updatedThisWeek: [] };
       document.getElementById('updated').textContent = 'Snapshot: ' + D.fmt(D.S.loadedAt);
@@ -1638,7 +1658,8 @@
       var previous = D.readSnapshot();
       var res = await D.runQuery();
       D.S.racks = res.racks; D.S.loadedAt = new Date().toISOString(); D.S.snapshotMode = false;
-      await D.loadSupplementalData(D.baseFor(), D.allCases());
+      if (D.S.itemMode === 'test-case') await D.loadSupplementalData(D.baseFor(), D.allCases());
+      else D.S.testResults = { status: 'unavailable', runs: [], error: 'The selected Query contains work items rather than Test Cases.' };
       D.S.snapshotComparison = D.compareSnapshot(previous);
       document.getElementById('updated').textContent = 'Updated: ' + D.fmt(D.S.loadedAt);
       D.saveSnapshot(previous);
