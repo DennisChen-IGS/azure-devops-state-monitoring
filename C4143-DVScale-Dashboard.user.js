@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         C9A16 Building Block ADO Statistics Dashboard
 // @namespace    local.ado.dvscale.dashboard
-// @version      1.11.4
+// @version      1.11.5
 // @description  Adds a multi-project Query selector, real Test Results, XLSX exports, query-scoped snapshots, and Extension support.
 // @homepageURL  https://github.com/DennisChen-IGS/azure-devops-state-monitoring
 // @supportURL   https://github.com/DennisChen-IGS/azure-devops-state-monitoring/issues
@@ -609,7 +609,7 @@
   D.idDropdown = function (items, kind) {
     if (!items.length) return null;
     var details = D.el('details', 'hbar-details');
-    details.appendChild(D.el('summary', null, (kind === 'bug' ? 'Bug IDs' : 'Case IDs') + ' (' + items.length + ')'));
+    details.appendChild(D.el('summary', null, (kind === 'bug' ? 'Bug IDs' : (D.S.itemMode === 'work-item' ? 'Work Item IDs' : 'Case IDs')) + ' (' + items.length + ')'));
     details.appendChild(D.itemLinks(items, kind));
     return details;
   };
@@ -649,7 +649,7 @@
       var level = D.priorityLevel(testCase.metrics && testCase.metrics.priority);
       (level ? groups[level] : groups.unknown).push(testCase);
     });
-    if (!cases.length) return D.horizontalBarChart('Case Priority completion', [], 'No Test Cases in the selected time range');
+    if (!cases.length) return D.horizontalBarChart(D.S.itemMode === 'work-item' ? 'Work item Priority closure' : 'Case Priority completion', [], 'No work items in the selected time range');
     var rows = [], totalClosed = 0;
     [1, 2, 3, 4].forEach(function (key) {
       var list = groups[key];
@@ -663,7 +663,7 @@
       rows.push({ label: 'Not set', valueText: unknownClosed + ' / ' + groups.unknown.length + ' Closed · ' + D.rate(unknownClosed, groups.unknown.length), percent: unknownClosed * 100 / groups.unknown.length, items: groups.unknown, color: '#94a3b8' });
     }
     rows.push({ label: 'All priorities', valueText: totalClosed + ' / ' + cases.length + ' Closed · ' + D.rate(totalClosed, cases.length), percent: totalClosed * 100 / cases.length, items: cases, color: '#38bdf8', total: true });
-    return D.horizontalBarChart('Case Priority completion', rows);
+    return D.horizontalBarChart(D.S.itemMode === 'work-item' ? 'Work item Priority closure' : 'Case Priority completion', rows);
   };
   D.numericRank = function (value) {
     var match = /-?\d+(?:\.\d+)?/.exec(String(value == null ? '' : value).replace(/,/g, ''));
@@ -788,7 +788,7 @@
       });
     }
     var n1 = D.svg('text', { x: cx, y: cy - 2, fill: '#e2e8f0', 'text-anchor': 'middle', 'font-size': '26', 'font-weight': '700' }); n1.textContent = total;
-    var n2 = D.svg('text', { x: cx, y: cy + 16, fill: '#8fa3c0', 'text-anchor': 'middle', 'font-size': '11' }); n2.textContent = 'test cases';
+    var n2 = D.svg('text', { x: cx, y: cy + 16, fill: '#8fa3c0', 'text-anchor': 'middle', 'font-size': '11' }); n2.textContent = D.S.itemMode === 'work-item' ? 'work items' : 'test cases';
     s.appendChild(n1); s.appendChild(n2);
     return s;
   };
@@ -1292,20 +1292,23 @@
   D.rackTable = function () {
     var stateSet = {};
     var rows = D.S.racks.map(function (r) {
-      var m = D.countStates(D.collect(r, 'Test Case').filter(D.inRange));
+      var m = D.countStates(D.itemsIn(r).filter(D.inRange));
       for (var k in m) stateSet[k] = 1; return { r: r, m: m };
     });
     var states = D.orderStates(Object.keys(stateSet));
     if (!states.length) return D.el('div', 'empty', 'No data in the selected time range');
     var t = D.el('table'), thead = D.el('thead'), hr = D.el('tr');
-    hr.appendChild(D.el('th', null, 'Rack'));
+    hr.appendChild(D.el('th', null, D.S.itemMode === 'work-item' ? 'Query group' : 'Rack'));
     states.forEach(function (s) { hr.appendChild(D.el('th', 'num', s)); });
     hr.appendChild(D.el('th', 'num', 'Total')); thead.appendChild(hr); t.appendChild(thead);
     var tb = D.el('tbody'), totals = {}, grand = 0;
     rows.forEach(function (row) {
       var tr = D.el('tr'), td0 = D.el('td');
-      var a = D.el('a', null, row.r.label + ' — ' + row.r.title.replace(/^(\[[^\]]*\]\s*)+/, ''));
-      a.href = D.wiUrl(row.r.id); a.target = '_blank'; a.rel = 'noopener'; td0.appendChild(a); tr.appendChild(td0);
+      var label = row.r.label + ' — ' + row.r.title.replace(/^(\[[^\]]*\]\s*)+/, '');
+      if (/^\d+$/.test(String(row.r.id))) {
+        var a = D.el('a', null, label); a.href = D.wiUrl(row.r.id); a.target = '_blank'; a.rel = 'noopener'; td0.appendChild(a);
+      } else td0.appendChild(D.el('span', null, label));
+      tr.appendChild(td0);
       var tot = 0;
       states.forEach(function (s) { var v = row.m[s] || 0; tot += v; totals[s] = (totals[s] || 0) + v; tr.appendChild(D.el('td', 'num', String(v))); });
       grand += tot; tr.appendChild(D.el('td', 'num', String(tot))); tb.appendChild(tr);
@@ -1516,9 +1519,9 @@
         grid.appendChild(b1); grid.appendChild(b2); panel.appendChild(grid);
         var b3 = D.box(generic ? 'Query group × State summary table' : 'Rack × State summary table');
         refs.tableBox = D.el('div'); b3.appendChild(refs.tableBox); panel.appendChild(b3);
-        var bPriority = D.box('Test Case completion by Priority — Closed = completed');
+        var bPriority = D.box(generic ? 'Work item closure by Priority — Closed = completed' : 'Test Case completion by Priority — Closed = completed');
         refs.priorityBox = D.el('div'); bPriority.appendChild(refs.priorityBox); panel.appendChild(bPriority);
-        var bMetrics = D.box('Sample Size, Number_of_cycles & Test Duration — largest / longest first');
+        var bMetrics = D.box(generic ? 'Available custom metrics — largest / longest first' : 'Sample Size, Number_of_cycles & Test Duration — largest / longest first');
         refs.metricBox = D.el('div'); bMetrics.appendChild(refs.metricBox); panel.appendChild(bMetrics);
         var b4 = D.box(generic ? 'Linked Bug tracking (when links are available)' : 'Linked Bug tracking — from Test Case Links');
         refs.bugStatsBox = D.el('div'); b4.appendChild(refs.bugStatsBox);
