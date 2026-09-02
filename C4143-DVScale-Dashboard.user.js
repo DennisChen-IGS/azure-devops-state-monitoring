@@ -1,12 +1,12 @@
 // ==UserScript==
 // @name         C9A16 Building Block ADO Statistics Dashboard
 // @namespace    local.ado.dvscale.dashboard
-// @version      1.11.0
+// @version      1.11.1
 // @description  Adds a multi-project Query selector, real Test Results, XLSX exports, query-scoped snapshots, and Extension support.
 // @homepageURL  https://github.com/DennisChen-IGS/azure-devops-state-monitoring
 // @supportURL   https://github.com/DennisChen-IGS/azure-devops-state-monitoring/issues
-// @updateURL    https://raw.githubusercontent.com/DennisChen-IGS/azure-devops-state-monitoring/main/C4143-DVScale-Dashboard.user.js
-// @downloadURL  https://raw.githubusercontent.com/DennisChen-IGS/azure-devops-state-monitoring/main/C4143-DVScale-Dashboard.user.js
+// @updateURL    https://raw.githubusercontent.com/DennisChen-IGS/azure-devops-state-monitoring/codex/building-block-ado-dashboard/C4143-DVScale-Dashboard.user.js
+// @downloadURL  https://raw.githubusercontent.com/DennisChen-IGS/azure-devops-state-monitoring/codex/building-block-ado-dashboard/C4143-DVScale-Dashboard.user.js
 // @match        https://azurecsi.visualstudio.com/*
 // @match        https://dev.azure.com/AzureCSI/*
 // @run-at       document-idle
