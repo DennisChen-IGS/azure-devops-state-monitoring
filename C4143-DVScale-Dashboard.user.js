@@ -1,13 +1,14 @@
 // ==UserScript==
-// @name         C4143 DV-Scale Rack Test Status Dashboard
+// @name         C9A16 Building Block ADO Statistics Dashboard
 // @namespace    local.ado.dvscale.dashboard
-// @version      1.10.0
+// @version      1.12.1
 // @description  Adds a multi-project Query selector, real Test Results, XLSX exports, query-scoped snapshots, and Extension support.
-// @homepageURL  https://github.com/alan512627/azure-devops-state-monitoring
-// @supportURL   https://github.com/alan512627/azure-devops-state-monitoring/issues
-// @updateURL    https://raw.githubusercontent.com/alan512627/azure-devops-state-monitoring/main/C4143-DVScale-Dashboard.user.js
-// @downloadURL  https://raw.githubusercontent.com/alan512627/azure-devops-state-monitoring/main/C4143-DVScale-Dashboard.user.js
+// @homepageURL  https://github.com/DennisChen-IGS/azure-devops-state-monitoring
+// @supportURL   https://github.com/DennisChen-IGS/azure-devops-state-monitoring/issues
+// @updateURL    https://raw.githubusercontent.com/DennisChen-IGS/azure-devops-state-monitoring/codex/building-block-ado-dashboard/C4143-DVScale-Dashboard.user.js?v=1.12.1
+// @downloadURL  https://raw.githubusercontent.com/DennisChen-IGS/azure-devops-state-monitoring/codex/building-block-ado-dashboard/C4143-DVScale-Dashboard.user.js?v=1.12.1
 // @match        https://azurecsi.visualstudio.com/*
+// @match        https://dev.azure.com/AzureCSI/*
 // @run-at       document-idle
 // @grant        none
 // ==/UserScript==
@@ -58,7 +59,7 @@
     /^\/_apis\/projects\/?$/i.test(location.pathname);
   if (!isDashboardEntry) return;
   var D = {};
-  D.CFG = {"org":"https://azurecsi.visualstudio.com","orgName":"azurecsi","project":"Dev","queryId":"9254024e-6a97-44ed-953b-1aa07d38fb48","queryUrl":"https://azurecsi.visualstudio.com/Dev/_queries/query/9254024e-6a97-44ed-953b-1aa07d38fb48/","testResultDays":28};
+  D.CFG = {"org":"https://azurecsi.visualstudio.com","orgName":"azurecsi","project":"Building Block","queryId":"df6c6860-58a1-483f-a6b0-de287fe6e951","queryUrl":"https://azurecsi.visualstudio.com/Building%20Block/_queries/query/df6c6860-58a1-483f-a6b0-de287fe6e951/","testResultDays":28};
   if (extensionContext) {
     D.CFG.org = String(extensionContext.org || D.CFG.org).replace(/\/+$/, '');
     D.CFG.orgName = extensionContext.orgName || D.CFG.orgName;
@@ -66,8 +67,8 @@
     D.CFG.queryUrl = D.CFG.org + '/' + encodeURIComponent(D.CFG.project) + '/_queries/query/' + D.CFG.queryId + '/';
   }
   D.DEFAULT_QUERIES = [
-    { name: 'C4143_DV-Scale', org: 'https://azurecsi.visualstudio.com', orgName: 'azurecsi', project: 'Dev', queryId: '9254024e-6a97-44ed-953b-1aa07d38fb48', queryUrl: 'https://azurecsi.visualstudio.com/Dev/_queries/query/9254024e-6a97-44ed-953b-1aa07d38fb48/', builtin: true },
-    { name: '[EchoFalls][C4142][PSE] EVT - Scale Testing', org: 'https://azurecsi.visualstudio.com', orgName: 'azurecsi', project: 'Dev', queryId: '6e06c765-2ff5-43c4-80c6-e78438eea6d9', queryUrl: 'https://azurecsi.visualstudio.com/Dev/_queries/query/6e06c765-2ff5-43c4-80c6-e78438eea6d9/', builtin: true }
+    { name: '[C9A16][DV][SIT] Building Block', org: 'https://azurecsi.visualstudio.com', orgName: 'azurecsi', project: 'Building Block', queryId: 'df6c6860-58a1-483f-a6b0-de287fe6e951', queryUrl: 'https://azurecsi.visualstudio.com/Building%20Block/_queries/query/df6c6860-58a1-483f-a6b0-de287fe6e951/', sourceType: 'query', builtin: true },
+    { name: '[C4143] PSE DVT - System Integration Test Plan', org: 'https://azurecsi.visualstudio.com', orgName: 'azurecsi', project: 'Dev', queryId: '', queryUrl: 'https://azurecsi.visualstudio.com/Dev/_testPlans/charts?planId=3823389&suiteId=3823390', testPlanId: '3823389', rootSuiteId: '3823390', sourceType: 'test-plan', builtin: true }
   ];
   D.STATE_COLORS = {"Not Started":"#94a3b8","New":"#60a5fa","Proposed":"#f5b544","Design":"#a78bfa","In Progress":"#818cf8","Active":"#818cf8","Ready":"#38bdf8","Committed":"#22d3ee","Passed":"#34d399","Closed":"#2dd4bf","Done":"#2dd4bf","Completed":"#2dd4bf","Failed":"#f87171","Blocked":"#fb7185","Removed":"#9ca3af","Resolved":"#22d3ee","Paused":"#fbbf24"};
   D.TYPE_COLORS = {"Epic":"#c084fc","Feature":"#38bdf8","System Requirement":"#fbbf24","Test Case":"#34d399","User Story":"#818cf8","Task":"#60a5fa","Bug":"#fb7185","Issue":"#fb923c"};
@@ -79,14 +80,14 @@
     sampleSize: { aliases: ['Sample Size', 'Test Sample Size', 'Sample Count', 'Samples'] },
     numberOfCycles: { fallback: 'Custom.Number_of_cycles', aliases: ['Number_of_cycles', 'Number of cycles', 'Number of Cycles'] },
     testDuration: { aliases: ['Test Duration', 'Estimated Test Duration', 'Duration', 'Test Time'] },
-    scriptType: { aliases: ['Script type', 'Script Type'] },
+    scriptType: { fallback: 'Custom.AutomationStatusTestCase', aliases: ['Automation Status Test Case', 'AutomationStatusTestCase', 'Script type', 'Script Type'] },
     crcSdk: { aliases: ['CRC SDK', 'CRC SDK Version'] },
     igsOwner: { aliases: ['IGS Owner'] },
     comments: { aliases: ['Comments', 'Comment'] }
   };
   D.S = {racks:[],loadedAt:null,range:"all",chartType:"pie",panels:[],active:0,mode:"live",queries:[],activeQueryKey:'',testResults:{status:"idle",runs:[]},snapshotComparison:null};
   D.el = function (t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; };
-  D.queryKey = function (query) { return [query.orgName, query.project, query.queryId].join('|').toLowerCase(); };
+  D.queryKey = function (query) { return [query.orgName, query.project, query.queryId || ('plan:' + (query.testPlanId || ''))].join('|').toLowerCase(); };
   D.activeQuery = function () {
     var key = D.S.activeQueryKey || D.queryKey(D.CFG);
     return (D.S.queries || []).filter(function (query) { return D.queryKey(query) === key; })[0] || Object.assign({ name: 'Azure DevOps Query' }, D.CFG);
@@ -116,7 +117,8 @@
     try {
       var custom = JSON.parse(localStorage.getItem('dvdashQueries') || '[]');
       if (Array.isArray(custom)) custom.forEach(function (query) {
-        if (query && query.orgName && query.project && query.queryId) map[D.queryKey(query)] = Object.assign({}, query, { builtin: false });
+        var key = query && query.orgName && query.project && query.queryId ? D.queryKey(query) : '';
+        if (key && !map[key]) map[key] = Object.assign({}, query, { builtin: false });
       });
     } catch (error) { }
     Object.keys(map).forEach(function (key) { list.push(map[key]); });
@@ -132,7 +134,9 @@
   };
   D.applyQuery = function (query, persist) {
     if (!query) return;
-    ['org', 'orgName', 'project', 'queryId', 'queryUrl'].forEach(function (key) { D.CFG[key] = query[key]; });
+    ['org', 'orgName', 'project', 'queryId', 'queryUrl', 'sourceType'].forEach(function (key) { D.CFG[key] = query[key]; });
+    D.CFG.testPlanId = query.testPlanId || null;
+    D.CFG.rootSuiteId = query.rootSuiteId || null;
     D.S.activeQueryKey = D.queryKey(query);
     if (persist !== false) { try { localStorage.setItem('dvdashActiveQuery', D.S.activeQueryKey); } catch (error) { } }
   };
@@ -239,7 +243,50 @@
     if (!referenceName || !fields || fields[referenceName] == null || fields[referenceName] === '') return null;
     return fields[referenceName];
   };
+  D.runTestPlan = async function () {
+    var base = D.baseFor(), projectPath = '/' + encodeURIComponent(D.CFG.project), planId = D.CFG.testPlanId;
+    var suiteResponse = await D.apiFetch(base + projectPath + '/_apis/testplan/Plans/' + encodeURIComponent(planId) + '/suites?expand=Children&api-version=7.1');
+    var suites = suiteResponse.value || [], entriesBySuite = {}, cursor = 0;
+    async function worker() {
+      while (cursor < suites.length) {
+        var suite = suites[cursor++];
+        var response = await D.apiFetch(base + projectPath + '/_apis/testplan/Plans/' + encodeURIComponent(planId) + '/Suites/' + encodeURIComponent(suite.id) + '/TestCase?api-version=7.1');
+        entriesBySuite[suite.id] = response.value || [];
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(8, suites.length) }, worker));
+    function flattenFields(entry) {
+      var fields = {};
+      (entry.workItem && entry.workItem.workItemFields || []).forEach(function (item) { Object.keys(item || {}).forEach(function (key) { fields[key] = item[key]; }); });
+      return fields;
+    }
+    function caseNode(entry) {
+      var fields = flattenFields(entry), assigned = fields['System.AssignedTo'];
+      return { id: entry.workItem.id, type: 'Test Case', title: entry.workItem.name || ('#' + entry.workItem.id), state: fields['System.State'] || 'Unknown',
+        tags: fields['System.Tags'] || '', changed: fields['Microsoft.VSTS.Common.StateChangeDate'] || fields['System.ChangedDate'] || null,
+        assigned: assigned && (assigned.displayName || assigned.name) || String(assigned || ''),
+        metrics: { priority: fields['Microsoft.VSTS.Common.Priority'] || null, sampleSize: null, numberOfCycles: null, testDuration: null },
+        suiteFields: { scriptType: fields['Custom.AutomationStatusTestCase'] || null, crcSdk: fields['Custom.CRCSdk'] || null, igsOwner: null, comments: null },
+        bugs: [], children: [] };
+    }
+    var childrenByParent = {};
+    suites.forEach(function (suite) { if (suite.parentSuite) (childrenByParent[suite.parentSuite.id] = childrenByParent[suite.parentSuite.id] || []).push(suite); });
+    function suiteNode(suite) {
+      var children = (childrenByParent[suite.id] || []).map(suiteNode).concat((entriesBySuite[suite.id] || []).map(caseNode));
+      return { id: suite.id, type: 'Feature', title: suite.name, state: '', tags: '', changed: suite.lastUpdatedDate || null, assigned: '', metrics: {}, suiteFields: {}, bugs: [], children: children, num: 999, label: suite.name };
+    }
+    var topSuites = (childrenByParent[D.CFG.rootSuiteId] || []).map(suiteNode);
+    if (!topSuites.length) {
+      var rootSuite = suites.filter(function (suite) { return suite.id === D.CFG.rootSuiteId; })[0];
+      if (rootSuite) topSuites = [suiteNode(rootSuite)];
+    }
+    var uniqueCases = {};
+    Object.keys(entriesBySuite).forEach(function (suiteId) { (entriesBySuite[suiteId] || []).forEach(function (entry) { uniqueCases[entry.workItem.id] = true; }); });
+    D.S.itemMode = 'test-case';
+    return { racks: topSuites, count: Object.keys(uniqueCases).length };
+  };
   D.runQuery = async function () {
+    if (D.CFG.testPlanId) return D.runTestPlan();
     D.S.bugLinkWarning = '';
     var base = D.baseFor();
     var wiql = await D.apiFetch(base + '/' + encodeURIComponent(D.CFG.project) + '/_apis/wit/wiql/' + D.CFG.queryId + '?api-version=6.0&$top=5000');
@@ -343,12 +390,33 @@
     var racks = rackIds.map(build);
     racks.forEach(function (r) { var m = /rack\s*#?\s*(\d+)/i.exec(r.title); r.num = m ? +m[1] : 999; r.label = m ? 'Rack ' + m[1] : r.title; });
     racks.sort(function (a, b) { return a.num - b.num; });
+    D.S.itemMode = rackIds.length || (items.length && items.every(function (it) { return it.fields && it.fields['System.WorkItemType'] === 'Test Case'; })) ? 'test-case' : 'work-item';
+    if (!racks.length) {
+      var flatItems = ids.filter(function (id) { return byId[id]; }).map(build);
+      if (flatItems.length) racks = [{ id: 'all-work-items', type: 'Query', title: 'All Work Items', state: '', tags: '', changed: null, assigned: '', metrics: {}, suiteFields: {}, bugs: [], children: flatItems, num: 1, label: 'All Work Items' }];
+    }
     return { racks: racks, count: ids.length };
   };
   D.allCases = function () {
     var cases = [];
-    (D.S.racks || []).forEach(function (rack) { cases = cases.concat(D.collect(rack, 'Test Case')); });
+    if (D.S.itemMode === 'test-case') (D.S.racks || []).forEach(function (rack) { cases = cases.concat(D.collect(rack, 'Test Case')); });
+    if (!cases.length) (D.S.racks || []).forEach(function (rack) {
+      (rack.children || []).forEach(function visit(node) {
+        if (!(node.children || []).length) cases.push(node);
+        else (node.children || []).forEach(visit);
+      });
+    });
     return cases;
+  };
+  D.itemsIn = function (node) {
+    var cases = D.S.itemMode === 'test-case' ? D.collect(node, 'Test Case') : [];
+    if (cases.length) return cases;
+    var items = [];
+    (node.children || []).forEach(function visit(child) {
+      if (!(child.children || []).length) items.push(child);
+      else (child.children || []).forEach(visit);
+    });
+    return items;
   };
   D.mapLimit = async function (items, limit, worker) {
     var results = new Array(items.length), cursor = 0;
@@ -543,7 +611,7 @@
   D.idDropdown = function (items, kind) {
     if (!items.length) return null;
     var details = D.el('details', 'hbar-details');
-    details.appendChild(D.el('summary', null, (kind === 'bug' ? 'Bug IDs' : 'Case IDs') + ' (' + items.length + ')'));
+    details.appendChild(D.el('summary', null, (kind === 'bug' ? 'Bug IDs' : (D.S.itemMode === 'work-item' ? 'Work Item IDs' : 'Case IDs')) + ' (' + items.length + ')'));
     details.appendChild(D.itemLinks(items, kind));
     return details;
   };
@@ -583,7 +651,7 @@
       var level = D.priorityLevel(testCase.metrics && testCase.metrics.priority);
       (level ? groups[level] : groups.unknown).push(testCase);
     });
-    if (!cases.length) return D.horizontalBarChart('Case Priority completion', [], 'No Test Cases in the selected time range');
+    if (!cases.length) return D.horizontalBarChart(D.S.itemMode === 'work-item' ? 'Work item Priority closure' : 'Case Priority completion', [], 'No work items in the selected time range');
     var rows = [], totalClosed = 0;
     [1, 2, 3, 4].forEach(function (key) {
       var list = groups[key];
@@ -597,7 +665,7 @@
       rows.push({ label: 'Not set', valueText: unknownClosed + ' / ' + groups.unknown.length + ' Closed · ' + D.rate(unknownClosed, groups.unknown.length), percent: unknownClosed * 100 / groups.unknown.length, items: groups.unknown, color: '#94a3b8' });
     }
     rows.push({ label: 'All priorities', valueText: totalClosed + ' / ' + cases.length + ' Closed · ' + D.rate(totalClosed, cases.length), percent: totalClosed * 100 / cases.length, items: cases, color: '#38bdf8', total: true });
-    return D.horizontalBarChart('Case Priority completion', rows);
+    return D.horizontalBarChart(D.S.itemMode === 'work-item' ? 'Work item Priority closure' : 'Case Priority completion', rows);
   };
   D.numericRank = function (value) {
     var match = /-?\d+(?:\.\d+)?/.exec(String(value == null ? '' : value).replace(/,/g, ''));
@@ -722,7 +790,7 @@
       });
     }
     var n1 = D.svg('text', { x: cx, y: cy - 2, fill: '#e2e8f0', 'text-anchor': 'middle', 'font-size': '26', 'font-weight': '700' }); n1.textContent = total;
-    var n2 = D.svg('text', { x: cx, y: cy + 16, fill: '#8fa3c0', 'text-anchor': 'middle', 'font-size': '11' }); n2.textContent = 'test cases';
+    var n2 = D.svg('text', { x: cx, y: cy + 16, fill: '#8fa3c0', 'text-anchor': 'middle', 'font-size': '11' }); n2.textContent = D.S.itemMode === 'work-item' ? 'work items' : 'test cases';
     s.appendChild(n1); s.appendChild(n2);
     return s;
   };
@@ -1045,7 +1113,7 @@
     return row;
   };
   D.tree = function (node, level) {
-    if (node.type === 'Test Case') return D.caseRow(node);
+    if (node.type === 'Test Case' || !(node.children || []).length) return D.caseRow(node);
     var d = D.el('details', 'node lvl' + Math.min(level, 3)), sm = D.el('summary');
     D.decorateBlock(d, node.type, node.state);
     sm.appendChild(D.el('span', 'ntitle', node.title));
@@ -1226,20 +1294,23 @@
   D.rackTable = function () {
     var stateSet = {};
     var rows = D.S.racks.map(function (r) {
-      var m = D.countStates(D.collect(r, 'Test Case').filter(D.inRange));
+      var m = D.countStates(D.itemsIn(r).filter(D.inRange));
       for (var k in m) stateSet[k] = 1; return { r: r, m: m };
     });
     var states = D.orderStates(Object.keys(stateSet));
     if (!states.length) return D.el('div', 'empty', 'No data in the selected time range');
     var t = D.el('table'), thead = D.el('thead'), hr = D.el('tr');
-    hr.appendChild(D.el('th', null, 'Rack'));
+    hr.appendChild(D.el('th', null, D.S.itemMode === 'work-item' ? 'Query group' : 'Rack'));
     states.forEach(function (s) { hr.appendChild(D.el('th', 'num', s)); });
     hr.appendChild(D.el('th', 'num', 'Total')); thead.appendChild(hr); t.appendChild(thead);
     var tb = D.el('tbody'), totals = {}, grand = 0;
     rows.forEach(function (row) {
       var tr = D.el('tr'), td0 = D.el('td');
-      var a = D.el('a', null, row.r.label + ' — ' + row.r.title.replace(/^(\[[^\]]*\]\s*)+/, ''));
-      a.href = D.wiUrl(row.r.id); a.target = '_blank'; a.rel = 'noopener'; td0.appendChild(a); tr.appendChild(td0);
+      var label = row.r.label + ' — ' + row.r.title.replace(/^(\[[^\]]*\]\s*)+/, '');
+      if (/^\d+$/.test(String(row.r.id))) {
+        var a = D.el('a', null, label); a.href = D.wiUrl(row.r.id); a.target = '_blank'; a.rel = 'noopener'; td0.appendChild(a);
+      } else td0.appendChild(D.el('span', null, label));
+      tr.appendChild(td0);
       var tot = 0;
       states.forEach(function (s) { var v = row.m[s] || 0; tot += v; totals[s] = (totals[s] || 0) + v; tr.appendChild(D.el('td', 'num', String(v))); });
       grand += tot; tr.appendChild(D.el('td', 'num', String(tot))); tb.appendChild(tr);
@@ -1277,7 +1348,7 @@
     document.title = query.name + ' Test Status Dashboard';
     var title = document.getElementById('dashboardTitle'); if (title) title.textContent = query.name + rackText;
     var source = document.getElementById('querySource');
-    if (source) { source.textContent = 'Azure DevOps Query: ' + query.name; source.href = query.queryUrl; }
+    if (source) { source.textContent = (query.sourceType === 'test-plan' ? 'Azure DevOps Test Plan: ' : 'Azure DevOps Query: ') + query.name; source.href = query.queryUrl; }
     D.refreshQuerySelector();
   };
   D.switchQuery = function (key) {
@@ -1337,7 +1408,7 @@
     var dashboardTitle = D.el('h1', null, D.activeQuery().name + ' — Test Status Dashboard'); dashboardTitle.id = 'dashboardTitle'; left.appendChild(dashboardTitle);
     var sub = D.el('div', 'sub');
     sub.appendChild(document.createTextNode('Source: '));
-    var qa = D.el('a', null, 'Azure DevOps Query: ' + D.activeQuery().name); qa.id = 'querySource';
+    var qa = D.el('a', null, (D.activeQuery().sourceType === 'test-plan' ? 'Azure DevOps Test Plan: ' : 'Azure DevOps Query: ') + D.activeQuery().name); qa.id = 'querySource';
     qa.href = D.CFG.queryUrl; qa.target = '_blank'; qa.rel = 'noopener'; sub.appendChild(qa);
     sub.appendChild(document.createTextNode(' ·  Every open / refresh of this page re-runs the query using the selected mode'));
     left.appendChild(sub); header.appendChild(left);
@@ -1381,7 +1452,7 @@
     ['Feature', 'System Requirement', 'Test Case'].forEach(function (type) { tl.appendChild(D.typeBadge(type)); });
     ctl.appendChild(tl);
     document.body.appendChild(ctl); D.refreshQuerySelector();
-    D.installStickyOffset();
+    try { D.installStickyOffset(); } catch (stickyError) { /* Layout enhancement must not block data loading. */ }
 
     var banner = D.el('div', 'banner info', 'Preparing to load…'); banner.id = 'banner'; document.body.appendChild(banner);
     var main = D.el('main', 'dashboard-main');
@@ -1404,7 +1475,7 @@
     });
     rs.addEventListener('change', function (e) { D.S.range = e.target.value; D.refresh(); });
     ts.addEventListener('change', function (e) { D.S.chartType = e.target.value; D.refresh(); });
-    rb.addEventListener('click', function () { D.load(); });
+    rb.addEventListener('click', D.reRunQuery);
     eb.addEventListener('click', function () { D.exportHtml(); });
     if (!D._timer) D._timer = setInterval(function () { var c = document.getElementById('autoRef'); if (c && c.checked && D.S.mode !== 'snapshot') D.load(); }, 300000);
   };
@@ -1412,9 +1483,10 @@
     D.updateIdentity();
     var tabsBar = document.getElementById('tabs'), host = document.getElementById('panels');
     tabsBar.innerHTML = ''; host.innerHTML = ''; D.S.panels = [];
-    var defs = [{ kind: 'ov', label: 'Overview (' + D.S.racks.length + ' Racks)' }]
+    var generic = D.S.itemMode === 'work-item';
+    var defs = [{ kind: 'ov', label: generic ? 'Query Overview' : 'Overview (' + D.S.racks.length + ' Racks)' }]
       .concat(D.S.racks.map(function (r) { return { kind: 'rack', label: r.label, rack: r }; }))
-      .concat([{ kind: 'insights', label: 'Insights' }, { kind: 'suite', label: 'Test Features' }]);
+      .concat(generic ? [] : [{ kind: 'insights', label: 'Insights' }, { kind: 'suite', label: 'Test Features' }]);
     defs.forEach(function (def, idx) {
       var tab = D.el('button', 'tab' + (idx === D.S.active ? ' active' : ''), def.label);
       tab.setAttribute('role', 'tab'); tab.setAttribute('aria-selected', idx === D.S.active ? 'true' : 'false');
@@ -1425,15 +1497,15 @@
       var refs = { kind: def.kind, rack: def.rack, panel: panel, tab: tab };
       var cards = D.el('div', 'cards');
       if (def.kind === 'ov') {
-        refs.cRacks = D.card('RACKS', D.S.racks.length, '#38bdf8');
+        refs.cRacks = D.card(generic ? 'QUERY GROUPS' : 'RACKS', D.S.racks.length, '#38bdf8');
         refs.cFeat = D.card('FEATURES', 0, '#c084fc');
         refs.cReq = D.card('SYSTEM REQS', 0, '#fbbf24');
-        refs.cCase = D.card('TOTAL TEST CASES', '-', '#34d399');
+        refs.cCase = D.card(generic ? 'TOTAL WORK ITEMS' : 'TOTAL TEST CASES', '-', '#34d399');
         refs.cFiltered = D.card('UPDATED IN RANGE', 0, '#60a5fa');
-        refs.cPass = D.card('PASS CASES / RATE', '-', '#2dd4bf');
-        refs.cFail = D.card('FAIL CASES (BLOCKED) / RATE', '-', '#fb7185');
-        refs.cProgress = D.card('IN PROGRESS CASES', 0, '#818cf8');
-        refs.cBugs = D.card('BUGS / AFFECTED CASES', '-', '#fb923c');
+        refs.cPass = D.card(generic ? 'CLOSED / RATE' : 'PASS CASES / RATE', '-', '#2dd4bf');
+        refs.cFail = D.card(generic ? 'BLOCKED / RATE' : 'FAIL CASES (BLOCKED) / RATE', '-', '#fb7185');
+        refs.cProgress = D.card(generic ? 'ACTIVE / IN PROGRESS' : 'IN PROGRESS CASES', 0, '#818cf8');
+        refs.cBugs = D.card(generic ? 'BUG WORK ITEMS' : 'BUGS / AFFECTED CASES', '-', '#fb923c');
         refs.cPass.title = 'Closed Test Cases are counted as Pass. Rate denominator: Test Cases in the selected time range.';
         refs.cFail.title = 'Blocked Test Cases are counted as Fail. Rate denominator: Test Cases in the selected time range.';
         refs.cProgress.title = 'Test Cases whose current Azure DevOps State is In Progress.';
@@ -1441,25 +1513,25 @@
         [refs.cRacks, refs.cFeat, refs.cReq, refs.cCase, refs.cFiltered, refs.cPass, refs.cFail, refs.cProgress, refs.cBugs].forEach(function (c) { cards.appendChild(c); });
         var stickyTop = D.el('div', 'panel-sticky'); stickyTop.appendChild(cards); panel.appendChild(stickyTop);
         var grid = D.el('div', 'grid');
-        var b1 = D.box('Test Case state distribution — all Racks');
+        var b1 = D.box(generic ? 'Work item state distribution' : 'Test Case state distribution — all Racks');
         refs.chartHost = D.el('div', 'chartwrap'); b1.appendChild(refs.chartHost);
         refs.legendHost = D.el('div'); b1.appendChild(refs.legendHost);
-        var b2 = D.box('Rack comparison (stacked bar)');
+        var b2 = D.box(generic ? 'Query group comparison (stacked bar)' : 'Rack comparison (stacked bar)');
         refs.cmpHost = D.el('div', 'chartwrap'); b2.appendChild(refs.cmpHost);
         grid.appendChild(b1); grid.appendChild(b2); panel.appendChild(grid);
-        var b3 = D.box('Rack × State summary table');
+        var b3 = D.box(generic ? 'Query group × State summary table' : 'Rack × State summary table');
         refs.tableBox = D.el('div'); b3.appendChild(refs.tableBox); panel.appendChild(b3);
-        var bPriority = D.box('Test Case completion by Priority — Closed = completed');
+        var bPriority = D.box(generic ? 'Work item closure by Priority — Closed = completed' : 'Test Case completion by Priority — Closed = completed');
         refs.priorityBox = D.el('div'); bPriority.appendChild(refs.priorityBox); panel.appendChild(bPriority);
-        var bMetrics = D.box('Sample Size, Number_of_cycles & Test Duration — largest / longest first');
+        var bMetrics = D.box(generic ? 'Available custom metrics — largest / longest first' : 'Sample Size, Number_of_cycles & Test Duration — largest / longest first');
         refs.metricBox = D.el('div'); bMetrics.appendChild(refs.metricBox); panel.appendChild(bMetrics);
-        var b4 = D.box('Linked Bug tracking — from Test Case Links');
+        var b4 = D.box(generic ? 'Linked Bug tracking (when links are available)' : 'Linked Bug tracking — from Test Case Links');
         refs.bugStatsBox = D.el('div'); b4.appendChild(refs.bugStatsBox);
         refs.bugBox = D.el('div', 'bug-detail-scroll'); b4.appendChild(refs.bugBox); panel.appendChild(b4);
       } else if (def.kind === 'rack') {
         refs.cFeat = D.card('FEATURES', 0, '#c084fc');
         refs.cReq = D.card('SYSTEM REQS', 0, '#fbbf24');
-        refs.cCase = D.card('TEST CASES', '-', '#34d399');
+        refs.cCase = D.card(generic ? 'WORK ITEMS' : 'TEST CASES', '-', '#34d399');
         refs.cFiltered = D.card('UPDATED IN RANGE', 0, '#60a5fa');
         refs.cBugs = D.card('LINKED BUGS', 0, '#f87171');
         refs.cBugs.title = 'Unique Bug work items linked from Test Cases in this Rack.';
@@ -1476,7 +1548,7 @@
         refs.priorityBox = D.el('div'); rbPriority.appendChild(refs.priorityBox); panel.appendChild(rbPriority);
         var rbMetrics = D.box('Sample Size, Number_of_cycles & Test Duration — largest / longest first');
         refs.metricBox = D.el('div'); rbMetrics.appendChild(refs.metricBox); panel.appendChild(rbMetrics);
-        var tb = D.box('Feature → System Requirement → Test Case (click to expand)');
+        var tb = D.box(generic ? 'Query work items' : 'Feature → System Requirement → Test Case (click to expand)');
         var bar = D.el('div', 'tree-toolbar');
         var bExp = D.el('button', null, 'Expand all'), bCol = D.el('button', null, 'Collapse all');
         var search = D.el('input'); search.placeholder = 'Search case title / ID / state / bug …'; search.style.minWidth = '0';
@@ -1508,9 +1580,8 @@
   };
   D.latest = function (cases) { var b = null; cases.forEach(function (c) { if (c.changed && (!b || c.changed > b)) b = c.changed; }); return b; };
   D.refresh = function () {
-    var allCases = [], allFeat = [], allReq = [];
+    var allCases = D.allCases(), allFeat = [], allReq = [];
     D.S.racks.forEach(function (r) {
-      allCases = allCases.concat(D.collect(r, 'Test Case'));
       allFeat = allFeat.concat(D.collect(r, 'Feature'));
       allReq = allReq.concat(D.collect(r, 'System Requirement'));
     });
@@ -1527,7 +1598,9 @@
         p.cPass._val.textContent = D.outcomeValue(outcomes.pass, outcomes.passRate);
         p.cFail._val.textContent = D.outcomeValue(outcomes.fail, outcomes.failRate);
         p.cProgress._val.textContent = outcomes.inProgress;
-        p.cBugs._val.textContent = linkedBugs.length + ' / ' + bugCases.length;
+        p.cBugs._val.textContent = D.S.itemMode === 'work-item'
+          ? allCases.filter(function (item) { return item.type === 'Bug'; }).length
+          : linkedBugs.length + ' / ' + bugCases.length;
         p.tableBox.innerHTML = ''; p.tableBox.appendChild(D.rackTable());
         p.priorityBox.innerHTML = ''; p.priorityBox.appendChild(D.priorityCompletionChart(f));
         p.metricBox.innerHTML = ''; p.metricBox.appendChild(D.metricInventoryPanel(f));
@@ -1537,11 +1610,11 @@
         D.drawInto(p.chartHost, counts);
         p.legendHost.innerHTML = ''; p.legendHost.appendChild(D.legend(counts));
         var stateSet = {};
-        var perRack = D.S.racks.map(function (r) { var m = D.countStates(D.collect(r, 'Test Case').filter(D.inRange)); for (var k in m) stateSet[k] = 1; return m; });
+        var perRack = D.S.racks.map(function (r) { var m = D.countStates(D.itemsIn(r).filter(D.inRange)); for (var k in m) stateSet[k] = 1; return m; });
         p.cmpHost.innerHTML = '';
         p.cmpHost.appendChild(D.stacked(D.S.racks.map(function (r) { return r.label; }), perRack, D.orderStates(Object.keys(stateSet))));
       } else if (p.kind === 'rack') {
-        var cs = D.collect(p.rack, 'Test Case'), fc = cs.filter(D.inRange);
+        var cs = D.itemsIn(p.rack), fc = cs.filter(D.inRange);
         p.cFeat._val.textContent = D.collect(p.rack, 'Feature').length;
         p.cReq._val.textContent = D.collect(p.rack, 'System Requirement').length;
         p.cCase._val.textContent = cs.length;
@@ -1564,9 +1637,9 @@
     var src = D.S.snapshotMode ? ('Offline snapshot (' + D.fmt(D.S.loadedAt) + ')') : (ml + ' · ' + D.fmt(D.S.loadedAt) + ' query re-run');
     requestAnimationFrame(D.fitCardValues);
     if (!tf && allCases.length) {
-      D.setStatus(src + ': loaded ' + allCases.length + ' test cases, but nothing was updated within "' + rl + '" — charts are empty. Latest change: ' + D.fmt(D.latest(allCases)) + '.' + bugNote + metricNote + testNote, 'warn');
+      D.setStatus(src + ': loaded ' + allCases.length + (D.S.itemMode === 'work-item' ? ' work items' : ' test cases') + ', but nothing was updated within "' + rl + '" — charts are empty. Latest change: ' + D.fmt(D.latest(allCases)) + '.' + bugNote + metricNote + testNote, 'warn');
     } else if (D.S.racks.length) {
-      D.setStatus(src + ': ' + D.S.racks.length + ' racks, ' + allCases.length + ' test cases, ' + totalLinkedBugs + ' linked Bugs; "' + rl + '" contains ' + tf + ' updated items.' + bugNote + metricNote + testNote, (D.S.bugLinkWarning || D.S.metricFieldWarning || testNote) ? 'warn' : 'info');
+      D.setStatus(src + ': ' + allCases.length + (D.S.itemMode === 'work-item' ? ' work items' : ' test cases') + '; "' + rl + '" contains ' + tf + ' updated items.' + (D.S.itemMode === 'work-item' ? '' : ' ' + totalLinkedBugs + ' linked Bugs.') + bugNote + metricNote + testNote, (D.S.bugLinkWarning || D.S.metricFieldWarning || testNote) ? 'warn' : 'info');
     }
   };
   D.load = async function () {
@@ -1578,6 +1651,9 @@
         return;
       }
       D.S.racks = s.racks; D.S.loadedAt = s.savedAt || null; D.S.snapshotMode = true; D.S.bugLinkWarning = ''; D.S.metricFieldWarning = '';
+      var snapshotLeaves = [];
+      (D.S.racks || []).forEach(function (rack) { snapshotLeaves = snapshotLeaves.concat(D.itemsIn(rack)); });
+      D.S.itemMode = snapshotLeaves.length && snapshotLeaves.every(function (item) { return item.type === 'Test Case'; }) ? 'test-case' : 'work-item';
       D.S.testResults = s.testResults || { status: 'unavailable', runs: [], error: 'This snapshot predates Test Result storage.' };
       D.S.snapshotComparison = s.snapshotComparison || { status: 'first', previousAt: null, currentAt: D.S.loadedAt, added: [], removed: [], stateChanged: [], updatedThisWeek: [] };
       document.getElementById('updated').textContent = 'Snapshot: ' + D.fmt(D.S.loadedAt);
@@ -1590,7 +1666,8 @@
       var previous = D.readSnapshot();
       var res = await D.runQuery();
       D.S.racks = res.racks; D.S.loadedAt = new Date().toISOString(); D.S.snapshotMode = false;
-      await D.loadSupplementalData(D.baseFor(), D.allCases());
+      if (D.S.itemMode === 'test-case') await D.loadSupplementalData(D.baseFor(), D.allCases());
+      else D.S.testResults = { status: 'unavailable', runs: [], error: 'The selected Query contains work items rather than Test Cases.' };
       D.S.snapshotComparison = D.compareSnapshot(previous);
       document.getElementById('updated').textContent = 'Updated: ' + D.fmt(D.S.loadedAt);
       D.saveSnapshot(previous);
@@ -1610,6 +1687,17 @@
   D.MODES = [["live","Live query (same-origin REST API)"],["snapshot","Offline snapshot (no network)"],["proxy","Local proxy (custom URL)"]];
   D.getProxy = function () { return (localStorage.getItem('dvdashProxy') || 'http://localhost:8080').replace(/\/+$/, ''); };
   D.baseFor = function () { return D.S.mode === 'proxy' ? D.getProxy() : D.CFG.org; };
+  D.authBootstrapUrl = function () { return D.CFG.org + '/_apis/projects?api-version=6.0#dvdash'; };
+  D.isAuthBootstrapPage = function () { return /^\/_apis\/projects\/?$/i.test(location.pathname); };
+  D.reRunQuery = function () {
+    if (!extensionContext && D.S.mode === 'live') {
+      D.setStatus('Refreshing the Azure DevOps sign-in session before re-running the query …', 'info');
+      if (D.isAuthBootstrapPage()) location.reload();
+      else location.replace(D.authBootstrapUrl());
+      return;
+    }
+    D.load();
+  };
   D.snapshotPayload = function () {
     return {
       savedAt: D.S.loadedAt || new Date().toISOString(), query: Object.assign({}, D.activeQuery()), racks: D.S.racks,
@@ -1658,7 +1746,7 @@
     if (D.EMBEDDED && D.EMBEDDED.racks) return D.EMBEDDED;
     try {
       var raw = localStorage.getItem(D.snapshotStorageKey('dvdashSnapshot'));
-      if (!raw && D.CFG.queryId === '9254024e-6a97-44ed-953b-1aa07d38fb48') raw = localStorage.getItem('dvdashSnapshot');
+      if (!raw && D.CFG.queryId === 'df6c6860-58a1-483f-a6b0-de287fe6e951') raw = localStorage.getItem('dvdashSnapshot');
       return raw ? JSON.parse(raw) : null;
     } catch (e) { return null; }
   };
@@ -1704,6 +1792,10 @@
       D.S.chartType = localStorage.getItem('dvdashType') || D.S.chartType || 'pie';
     } catch (e) { }
     D.loadQueryCatalog();
+    if (!extensionContext && D.S.mode === 'live' && location.origin === D.CFG.org && !D.isAuthBootstrapPage()) {
+      location.replace(D.authBootstrapUrl());
+      return;
+    }
     D.buildShell(); D.persistWire(); D.load();
   };
   D.boot();

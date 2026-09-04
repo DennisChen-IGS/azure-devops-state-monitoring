@@ -1,9 +1,9 @@
 {
   "manifestVersion": 1,
   "id": "c4143-dvscale-dashboard",
-  "version": "1.1.0",
-  "name": "C4143 DV-Scale Dashboard",
-  "description": "Switch between read-only project Queries for Rack status, Test Results, XLSX reports and snapshot changes inside Azure DevOps.",
+  "version": "1.2.0",
+  "name": "C9A16 Building Block Dashboard",
+  "description": "Read-only Building Block Test Case statistics, Test Results, XLSX reports and snapshot changes inside Azure DevOps.",
   "publisher": "alan512627",
   "public": false,
   "categories": ["Azure Boards", "Azure Test Plans"],
@@ -21,7 +21,7 @@
       "type": "ms.vss-web.hub",
       "targets": ["ms.vss-test-web.test-hub-group"],
       "properties": {
-        "name": "C4143 DV-Scale",
+        "name": "C9A16 Building Block",
         "order": 90,
         "uri": "dist/dashboard.html",
         "supportsMobile": true
@@ -32,8 +32,8 @@
       "type": "ms.vss-dashboards-web.widget",
       "targets": ["ms.vss-dashboards-web.widget-catalog"],
       "properties": {
-        "name": "C4143 DV-Scale Status",
-        "description": "Live C4143 Test Case state summary with a link to the full dashboard.",
+        "name": "C9A16 Building Block Status",
+        "description": "Live Building Block Test Case state summary with a link to the full dashboard.",
         "catalogIconUrl": "img/icon.svg",
         "uri": "dist/widget.html",
         "isNameConfigurable": true,

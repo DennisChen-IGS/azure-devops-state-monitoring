@@ -3,7 +3,7 @@ import type { WidgetSettings, WidgetStatus } from "azure-devops-extension-api/Da
 
 const WIDGET_STATUS_SUCCESS = 0;
 
-const QUERY_ID = "9254024e-6a97-44ed-953b-1aa07d38fb48";
+const QUERY_ID = "df6c6860-58a1-483f-a6b0-de287fe6e951";
 const colors: Record<string, string> = {
   "Not Started": "#94a3b8", "In Progress": "#818cf8", Blocked: "#fb7185", Closed: "#2dd4bf", Passed: "#34d399", Failed: "#f87171"
 };
@@ -43,7 +43,9 @@ async function loadSummary(): Promise<Summary> {
     values.push(...(batch.value || []));
   }
   const states: Record<string, number> = {};
-  values.filter((item) => item.fields?.["System.WorkItemType"] === "Test Case").forEach((item) => {
+  const unique = new Map<number, any>();
+  values.forEach((item) => { if (item.id) unique.set(item.id, item); });
+  [...unique.values()].forEach((item) => {
     const state = item.fields["System.State"] || "Unknown";
     states[state] = (states[state] || 0) + 1;
   });
@@ -56,16 +58,16 @@ function render(summary: Summary, title: string): void {
   const root = document.getElementById("widget-root")!;
   const max = Math.max(1, ...Object.values(summary.states));
   const rows = Object.entries(summary.states).sort((a, b) => b[1] - a[1]).map(([state, count]) => `<div class="state-row"><span>${escapeHtml(state)}</span><div class="state-track"><div class="state-fill" style="width:${count * 100 / max}%;background:${colors[state] || "#38bdf8"}"></div></div><span class="state-value">${count}</span></div>`).join("");
-  root.innerHTML = `<h2>${escapeHtml(title)}</h2><div class="total"><strong>${summary.total}</strong><span>live test cases</span></div><div class="state-list">${rows}</div><div class="footer"><span class="updated">Updated ${summary.updatedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span><a class="open-link" target="_top" href="${escapeHtml(summary.hubUrl)}">Open full dashboard</a></div>`;
+  root.innerHTML = `<h2>${escapeHtml(title)}</h2><div class="total"><strong>${summary.total}</strong><span>live query work items</span></div><div class="state-list">${rows}</div><div class="footer"><span class="updated">Updated ${summary.updatedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span><a class="open-link" target="_top" href="${escapeHtml(summary.hubUrl)}">Open full dashboard</a></div>`;
 }
 
 async function update(widgetSettings: WidgetSettings): Promise<WidgetStatus> {
   try {
-    render(await loadSummary(), widgetSettings.name || "C4143 DV-Scale Status");
+    render(await loadSummary(), widgetSettings.name || "C9A16 Building Block Status");
     return { statusType: WIDGET_STATUS_SUCCESS };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    document.getElementById("widget-root")!.innerHTML = `<h2>${escapeHtml(widgetSettings.name || "C4143 DV-Scale Status")}</h2><div class="error">Unable to load the live Query: ${escapeHtml(message)}</div>`;
+    document.getElementById("widget-root")!.innerHTML = `<h2>${escapeHtml(widgetSettings.name || "C9A16 Building Block Status")}</h2><div class="error">Unable to load the live Query: ${escapeHtml(message)}</div>`;
     return Promise.reject({ message, isUserVisible: true, isRichText: false });
   }
 }

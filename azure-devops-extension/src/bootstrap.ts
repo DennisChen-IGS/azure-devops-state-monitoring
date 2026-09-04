@@ -38,6 +38,6 @@ async function start(): Promise<void> {
 start().catch((error) => {
   const message = error instanceof Error ? error.message : String(error);
   const loading = document.getElementById("extension-loading");
-  if (loading) loading.textContent = `C4143 Dashboard failed to start: ${message}`;
+  if (loading) loading.textContent = `Building Block Dashboard failed to start: ${message}`;
   SDK.notifyLoadFailed(message);
 });

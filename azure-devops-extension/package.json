@@ -1,8 +1,8 @@
 {
   "name": "c4143-dvscale-azure-devops-extension",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
-  "description": "Azure DevOps Hub with multi-Query Rack dashboards and a C4143 summary Widget",
+  "description": "Azure DevOps Hub with Building Block Test Case statistics and summary Widget",
   "scripts": {
     "build": "node scripts/build.mjs",
     "check": "tsc --noEmit",
