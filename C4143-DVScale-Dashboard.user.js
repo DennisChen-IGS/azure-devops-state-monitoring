@@ -1,12 +1,12 @@
 // ==UserScript==
 // @name         C9A16 Building Block ADO Statistics Dashboard
 // @namespace    local.ado.dvscale.dashboard
-// @version      1.12.0
+// @version      1.12.1
 // @description  Adds a multi-project Query selector, real Test Results, XLSX exports, query-scoped snapshots, and Extension support.
 // @homepageURL  https://github.com/DennisChen-IGS/azure-devops-state-monitoring
 // @supportURL   https://github.com/DennisChen-IGS/azure-devops-state-monitoring/issues
-// @updateURL    https://raw.githubusercontent.com/DennisChen-IGS/azure-devops-state-monitoring/codex/building-block-ado-dashboard/C4143-DVScale-Dashboard.user.js?v=1.12.0
-// @downloadURL  https://raw.githubusercontent.com/DennisChen-IGS/azure-devops-state-monitoring/codex/building-block-ado-dashboard/C4143-DVScale-Dashboard.user.js?v=1.12.0
+// @updateURL    https://raw.githubusercontent.com/DennisChen-IGS/azure-devops-state-monitoring/codex/building-block-ado-dashboard/C4143-DVScale-Dashboard.user.js?v=1.12.1
+// @downloadURL  https://raw.githubusercontent.com/DennisChen-IGS/azure-devops-state-monitoring/codex/building-block-ado-dashboard/C4143-DVScale-Dashboard.user.js?v=1.12.1
 // @match        https://azurecsi.visualstudio.com/*
 // @match        https://dev.azure.com/AzureCSI/*
 // @run-at       document-idle
@@ -1475,7 +1475,7 @@
     });
     rs.addEventListener('change', function (e) { D.S.range = e.target.value; D.refresh(); });
     ts.addEventListener('change', function (e) { D.S.chartType = e.target.value; D.refresh(); });
-    rb.addEventListener('click', function () { D.load(); });
+    rb.addEventListener('click', D.reRunQuery);
     eb.addEventListener('click', function () { D.exportHtml(); });
     if (!D._timer) D._timer = setInterval(function () { var c = document.getElementById('autoRef'); if (c && c.checked && D.S.mode !== 'snapshot') D.load(); }, 300000);
   };
@@ -1687,6 +1687,17 @@
   D.MODES = [["live","Live query (same-origin REST API)"],["snapshot","Offline snapshot (no network)"],["proxy","Local proxy (custom URL)"]];
   D.getProxy = function () { return (localStorage.getItem('dvdashProxy') || 'http://localhost:8080').replace(/\/+$/, ''); };
   D.baseFor = function () { return D.S.mode === 'proxy' ? D.getProxy() : D.CFG.org; };
+  D.authBootstrapUrl = function () { return D.CFG.org + '/_apis/projects?api-version=6.0#dvdash'; };
+  D.isAuthBootstrapPage = function () { return /^\/_apis\/projects\/?$/i.test(location.pathname); };
+  D.reRunQuery = function () {
+    if (!extensionContext && D.S.mode === 'live') {
+      D.setStatus('Refreshing the Azure DevOps sign-in session before re-running the query …', 'info');
+      if (D.isAuthBootstrapPage()) location.reload();
+      else location.replace(D.authBootstrapUrl());
+      return;
+    }
+    D.load();
+  };
   D.snapshotPayload = function () {
     return {
       savedAt: D.S.loadedAt || new Date().toISOString(), query: Object.assign({}, D.activeQuery()), racks: D.S.racks,
@@ -1781,6 +1792,10 @@
       D.S.chartType = localStorage.getItem('dvdashType') || D.S.chartType || 'pie';
     } catch (e) { }
     D.loadQueryCatalog();
+    if (!extensionContext && D.S.mode === 'live' && location.origin === D.CFG.org && !D.isAuthBootstrapPage()) {
+      location.replace(D.authBootstrapUrl());
+      return;
+    }
     D.buildShell(); D.persistWire(); D.load();
   };
   D.boot();
